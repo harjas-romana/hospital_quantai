@@ -19,7 +19,6 @@
 # fuzzywuzzy>=0.18.0
 # python-Levenshtein>=0.12.0 
 
-
 # FastAPI and ASGI server
 fastapi>=0.68.0
 uvicorn>=0.15.0
@@ -48,8 +47,7 @@ scikit-learn>=0.24.0
 elevenlabs>=0.2.0
 
 # Speech recognition
-SpeechRecognition>=3.8.0
-PyAudio>=0.2.11  # Ensure PortAudio is installed on your system
+SpeechRecognition>=3.8.0  # Keep this if you need speech recognition without PyAudio
 
 # Terminal text formatting
 colorama>=0.4.4
