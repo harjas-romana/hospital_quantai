@@ -9,8 +9,7 @@ const prompts = [
   'Rewrite message for maximum impact',
   'Summarize key medical points',
 ];
-
-const API_BASE = 'http://localhost:8000'; // Updated
+const API_BASE = "https://quantai-hospital-agent.onrender.com"; // Updated
 
 // Server Status Type
 type ServerStatus = {
