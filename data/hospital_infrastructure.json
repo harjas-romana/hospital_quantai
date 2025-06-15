@@ -1,0 +1,252 @@
+{
+    "departments": {
+        "Cardiology": {
+            "specialties": [
+                "Heart disease",
+                "Hypertension",
+                "Heart failure",
+                "Arrhythmia",
+                "Cardiac imaging"
+            ],
+            "common_procedures": [
+                "EKG",
+                "Echocardiogram",
+                "Stress test",
+                "Cardiac catheterization",
+                "Angioplasty"
+            ],
+            "doctors": [
+                "Dr. Smith",
+                "Dr. Johnson",
+                "Dr. Williams",
+                "Dr. Brown",
+                "Dr. Davis"
+            ],
+            "nurses": [
+                "Nurse Brown",
+                "Nurse Davis",
+                "Nurse Wilson",
+                "Nurse Taylor",
+                "Nurse Anderson"
+            ],
+            "equipment": [
+                "ECG Machine",
+                "Echocardiogram",
+                "Stress Test Equipment",
+                "Cardiac Monitor"
+            ],
+            "beds": 20,
+            "operating_rooms": 2,
+            "wait_time": "15-30 minutes"
+        },
+        "Neurology": {
+            "specialties": [
+                "Brain disorders",
+                "Nerve disorders",
+                "Stroke",
+                "Epilepsy",
+                "Movement disorders"
+            ],
+            "common_procedures": [
+                "MRI",
+                "CT scan",
+                "EEG",
+                "Nerve conduction study",
+                "Lumbar puncture"
+            ],
+            "doctors": [
+                "Dr. Brown",
+                "Dr. Davis",
+                "Dr. Miller",
+                "Dr. Wilson",
+                "Dr. Moore"
+            ],
+            "nurses": [
+                "Nurse Smith",
+                "Nurse Johnson",
+                "Nurse Williams",
+                "Nurse Brown",
+                "Nurse Davis"
+            ],
+            "equipment": [
+                "MRI Machine",
+                "CT Scanner",
+                "EEG Machine",
+                "Nerve Conduction Equipment"
+            ],
+            "beds": 15,
+            "operating_rooms": 2,
+            "wait_time": "20-40 minutes"
+        },
+        "Orthopedics": {
+            "specialties": [
+                "Bone disorders",
+                "Joint problems",
+                "Sports injuries",
+                "Spine conditions",
+                "Trauma"
+            ],
+            "common_procedures": [
+                "X-ray",
+                "Physical therapy",
+                "Joint replacement",
+                "Arthroscopy",
+                "Fracture repair"
+            ],
+            "doctors": [
+                "Dr. Wilson",
+                "Dr. Moore",
+                "Dr. Taylor",
+                "Dr. Anderson",
+                "Dr. Thomas"
+            ],
+            "nurses": [
+                "Nurse Brown",
+                "Nurse Davis",
+                "Nurse Wilson",
+                "Nurse Taylor",
+                "Nurse Anderson"
+            ],
+            "equipment": [
+                "X-Ray Machine",
+                "Physical Therapy Equipment",
+                "Surgical Navigation System"
+            ],
+            "beds": 25,
+            "operating_rooms": 2,
+            "wait_time": "10-25 minutes"
+        },
+        "Emergency": {
+            "specialties": [
+                "Trauma",
+                "Acute care",
+                "Critical care",
+                "Toxicology",
+                "Disaster medicine"
+            ],
+            "common_procedures": [
+                "Trauma assessment",
+                "Emergency surgery",
+                "Critical care",
+                "Intubation"
+            ],
+            "doctors": [
+                "Dr. Anderson",
+                "Dr. Thomas",
+                "Dr. Jackson",
+                "Dr. White",
+                "Dr. Harris"
+            ],
+            "nurses": [
+                "Nurse Martinez",
+                "Nurse Robinson",
+                "Nurse Clark",
+                "Nurse Lewis",
+                "Nurse Lee"
+            ],
+            "equipment": [
+                "Trauma Bay Equipment",
+                "Emergency Response Equipment",
+                "Critical Care Equipment"
+            ],
+            "beds": 50,
+            "operating_rooms": 2,
+            "wait_time": "Immediate"
+        },
+        "Pediatrics": {
+            "specialties": [
+                "Child health",
+                "Development",
+                "Pediatric diseases",
+                "Adolescent medicine",
+                "Neonatology"
+            ],
+            "common_procedures": [
+                "Well-child visits",
+                "Vaccinations",
+                "Development assessment",
+                "Growth monitoring"
+            ],
+            "doctors": [
+                "Dr. White",
+                "Dr. Harris",
+                "Dr. Martin",
+                "Dr. Thompson",
+                "Dr. Garcia"
+            ],
+            "nurses": [
+                "Nurse Thompson",
+                "Nurse Garcia",
+                "Nurse Martinez",
+                "Nurse Robinson",
+                "Nurse Clark"
+            ],
+            "equipment": [
+                "Pediatric Examination Equipment",
+                "Vaccination Supplies",
+                "Growth Charts"
+            ],
+            "beds": 30,
+            "operating_rooms": 1,
+            "wait_time": "15-30 minutes"
+        }
+    },
+    "facilities": {
+        "emergency_room": {
+            "capacity": 50,
+            "beds": {
+                "trauma": 10,
+                "acute": 20,
+                "observation": 20
+            },
+            "equipment": [
+                "CT Scanner",
+                "MRI",
+                "X-Ray",
+                "Ultrasound",
+                "ECG"
+            ],
+            "specialized_units": {
+                "trauma_center": true,
+                "stroke_center": true,
+                "cardiac_center": true
+            }
+        },
+        "operating_rooms": {
+            "total": 8,
+            "specialized": {
+                "cardiac": 2,
+                "neurology": 2,
+                "orthopedics": 2,
+                "general": 2
+            },
+            "equipment": {
+                "anesthesia_machines": 8,
+                "surgical_lights": 16,
+                "monitoring_systems": 8,
+                "ventilators": 8
+            }
+        },
+        "icu": {
+            "medical": 15,
+            "surgical": 10,
+            "cardiac": 10,
+            "neurological": 10,
+            "pediatric": 5,
+            "equipment": {
+                "ventilators": 30,
+                "monitoring_systems": 50,
+                "dialysis_machines": 5
+            }
+        },
+        "wards": {
+            "general": 100,
+            "private": 50,
+            "semi_private": 75,
+            "pediatric": 30,
+            "maternity": 40,
+            "oncology": 25,
+            "isolation": 10
+        }
+    }
+}
