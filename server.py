@@ -11,7 +11,7 @@ from pathlib import Path
 import tempfile
 import uuid
 from datetime import datetime
-import speech_recognition as sr
+# import speech_recognition as sr
 import io
 import wave
 import time
@@ -29,7 +29,7 @@ from cachetools import TTLCache
 
 # Import our agent implementations
 from agent import QuantAIAgent
-from voice_agent import VoiceAgent, TextToSpeech, SpeechToText
+# from voice_agent import VoiceAgent, TextToSpeech, SpeechToText
 
 # Configure logging
 logging.basicConfig(
@@ -63,7 +63,7 @@ app.add_middleware(
 
 # Initialize our agents
 text_agent = QuantAIAgent()
-voice_agent = VoiceAgent()
+# voice_agent = VoiceAgent()
 
 # Create temp directory for audio files
 TEMP_DIR = Path("temp_audio")
@@ -112,16 +112,16 @@ class TextResponse(BaseModel):
     detected_language: Optional[str] = None
     confidence: Optional[float] = None
 
-class VoiceResponse(BaseModel):
-    """Model for voice query responses."""
-    text: str
-    audio_url: Optional[str] = None
-    error: Optional[str] = None
+# class VoiceResponse(BaseModel):
+#     """Model for voice query responses."""
+#     text: str
+#     audio_url: Optional[str] = None
+#     error: Optional[str] = None
 
-class TextToSpeechRequest(BaseModel):
-    """Model for text-to-speech requests."""
-    text: str
-    voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice ID by default
+# class TextToSpeechRequest(BaseModel):
+#     """Model for text-to-speech requests."""
+#     text: str
+#     voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice ID by default
 
 def cleanup_old_files(directory: Path, max_age_hours: int = 1):
     """Clean up old temporary files."""
@@ -247,130 +247,130 @@ async def process_text_query(query: TextQuery):
             detail=f"Error processing text query: {str(e)}"
         )
 
-@app.post("/voice-query", response_model=VoiceResponse)
-async def process_voice_query(
-    audio_file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = None
-):
-    """
-    Process a voice query and return both text and synthesized speech response.
-    """
-    try:
-        logger.info(f"Processing voice query from file: {audio_file.filename}")
+# @app.post("/voice-query", response_model=VoiceResponse)
+# async def process_voice_query(
+#     audio_file: UploadFile = File(...),
+#     background_tasks: BackgroundTasks = None
+# ):
+#     """
+#     Process a voice query and return both text and synthesized speech response.
+#     """
+#     try:
+#         logger.info(f"Processing voice query from file: {audio_file.filename}")
         
-        # Read uploaded audio file
-        audio_data = await audio_file.read()
-        logger.info(f"Received audio data: {len(audio_data)} bytes")
+#         # Read uploaded audio file
+#         audio_data = await audio_file.read()
+#         logger.info(f"Received audio data: {len(audio_data)} bytes")
         
-        # Validate WAV format
-        if not validate_wav_file(audio_data):
-            logger.error("Invalid WAV file format")
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid audio format. Please send a valid WAV file."
-            )
+#         # Validate WAV format
+#         if not validate_wav_file(audio_data):
+#             logger.error("Invalid WAV file format")
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Invalid audio format. Please send a valid WAV file."
+#             )
             
-        # Save to temporary file for processing
-        temp_input = TEMP_DIR / f"input_{uuid.uuid4()}.wav"
-        with open(temp_input, "wb") as f:
-            f.write(audio_data)
+#         # Save to temporary file for processing
+#         temp_input = TEMP_DIR / f"input_{uuid.uuid4()}.wav"
+#         with open(temp_input, "wb") as f:
+#             f.write(audio_data)
             
-        logger.info(f"Saved audio to temporary file: {temp_input}")
+#         logger.info(f"Saved audio to temporary file: {temp_input}")
         
-        try:
-            # Create a recognizer with the same parameters as voice_agent.py
-            recognizer = sr.Recognizer()
-            recognizer.energy_threshold = 300
-            recognizer.dynamic_energy_threshold = True
-            recognizer.dynamic_energy_adjustment_damping = 0.15
-            recognizer.dynamic_energy_ratio = 1.5
+#         try:
+#             # Create a recognizer with the same parameters as voice_agent.py
+#             recognizer = sr.Recognizer()
+#             recognizer.energy_threshold = 300
+#             recognizer.dynamic_energy_threshold = True
+#             recognizer.dynamic_energy_adjustment_damping = 0.15
+#             recognizer.dynamic_energy_ratio = 1.5
             
-            # Use AudioFile instead of AudioData for better compatibility
-            with sr.AudioFile(str(temp_input)) as source:
-                audio = recognizer.record(source)
+#             # Use AudioFile instead of AudioData for better compatibility
+#             with sr.AudioFile(str(temp_input)) as source:
+#                 audio = recognizer.record(source)
                 
-            # Attempt recognition
-            text = recognizer.recognize_google(audio)
+#             # Attempt recognition
+#             text = recognizer.recognize_google(audio)
             
-            if not text:
-                logger.warning("No speech detected in audio")
-                raise sr.UnknownValueError("No speech detected")
+#             if not text:
+#                 logger.warning("No speech detected in audio")
+#                 raise sr.UnknownValueError("No speech detected")
                 
-            logger.info(f"Successfully transcribed text: {text}")
+#             logger.info(f"Successfully transcribed text: {text}")
             
-        except sr.UnknownValueError:
-            logger.warning("Could not understand audio")
-            raise HTTPException(
-                status_code=400,
-                detail="Could not understand audio input"
-            )
-        except sr.RequestError as e:
-            logger.error(f"Speech recognition error: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Speech recognition service error: {str(e)}"
-            )
-        finally:
-            # Clean up temporary input file
-            if temp_input.exists():
-                temp_input.unlink()
+#         except sr.UnknownValueError:
+#             logger.warning("Could not understand audio")
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Could not understand audio input"
+#             )
+#         except sr.RequestError as e:
+#             logger.error(f"Speech recognition error: {e}")
+#             raise HTTPException(
+#                 status_code=500,
+#                 detail=f"Speech recognition service error: {str(e)}"
+#             )
+#         finally:
+#             # Clean up temporary input file
+#             if temp_input.exists():
+#                 temp_input.unlink()
             
-        # Generate response using the text agent
-        response_text = text_agent.generate_response(text)
-        logger.info(f"Generated response: {response_text}")
+#         # Generate response using the text agent
+#         response_text = text_agent.generate_response(text)
+#         logger.info(f"Generated response: {response_text}")
         
-        # Convert response to speech using TTS
-        audio_data = voice_agent.text_to_speech.convert_to_speech(response_text)
+#         # Convert response to speech using TTS
+#         audio_data = voice_agent.text_to_speech.convert_to_speech(response_text)
         
-        if not audio_data:
-            # Return text-only response if speech conversion fails
-            logger.warning("Speech synthesis failed, returning text-only response")
-            return VoiceResponse(
-                text=response_text,
-                error="Speech synthesis unavailable"
-            )
+#         if not audio_data:
+#             # Return text-only response if speech conversion fails
+#             logger.warning("Speech synthesis failed, returning text-only response")
+#             return VoiceResponse(
+#                 text=response_text,
+#                 error="Speech synthesis unavailable"
+#             )
             
-        # Save audio response to temporary file
-        temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.mp3"
-        with open(temp_output, "wb") as f:
-            f.write(audio_data)
+#         # Save audio response to temporary file
+#         temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.mp3"
+#         with open(temp_output, "wb") as f:
+#             f.write(audio_data)
             
-        # Schedule cleanup of temporary files
-        if background_tasks:
-            background_tasks.add_task(cleanup_old_files, TEMP_DIR)
+#         # Schedule cleanup of temporary files
+#         if background_tasks:
+#             background_tasks.add_task(cleanup_old_files, TEMP_DIR)
         
-        # Generate URL for audio file
-        audio_url = f"/audio/{temp_output.name}"
+#         # Generate URL for audio file
+#         audio_url = f"/audio/{temp_output.name}"
         
-        logger.info("Successfully processed voice query and generated response")
-        return VoiceResponse(
-            text=response_text,
-            audio_url=audio_url
-        )
+#         logger.info("Successfully processed voice query and generated response")
+#         return VoiceResponse(
+#             text=response_text,
+#             audio_url=audio_url
+#         )
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing voice query: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing voice query: {str(e)}"
-        )
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error processing voice query: {e}")
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error processing voice query: {str(e)}"
+#         )
 
-@app.get("/audio/{filename}")
-async def get_audio(filename: str):
-    """
-    Serve generated audio files.
-    """
-    file_path = TEMP_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
+# @app.get("/audio/{filename}")
+# async def get_audio(filename: str):
+#     """
+#     Serve generated audio files.
+#     """
+#     file_path = TEMP_DIR / filename
+#     if not file_path.exists():
+#         raise HTTPException(status_code=404, detail="Audio file not found")
         
-    return FileResponse(
-        file_path,
-        media_type="audio/mpeg",
-        filename=filename
-    )
+#     return FileResponse(
+#         file_path,
+#         media_type="audio/mpeg",
+#         filename=filename
+#     )
 
 @app.get("/health")
 async def health_check():
@@ -383,7 +383,7 @@ async def health_check():
         "version": "1.1.0",
         "services": {
             "text_agent": "ok",
-            "voice_agent": "ok",
+            "voice_agent": "disabled",
             "translation": "ok"
         }
     }
@@ -396,25 +396,25 @@ async def health_check():
         status["services"]["text_agent"] = f"error: {str(e)}"
         status["status"] = "degraded"
     
-    # Check voice agent
-    try:
-        # Simple test to verify voice agent is working
-        _ = voice_agent.text_to_speech.api_key
-    except Exception as e:
-        status["services"]["voice_agent"] = f"error: {str(e)}"
-        status["status"] = "degraded"
+    # # Check voice agent
+    # try:
+    #     # Simple test to verify voice agent is working
+    #     _ = voice_agent.text_to_speech.api_key
+    # except Exception as e:
+    #     status["services"]["voice_agent"] = f"error: {str(e)}"
+    #     status["status"] = "degraded"
     
-    # Check translation service
-    try:
-        translator = GoogleTranslator(source='en', target='es')
-        test_translation = translator.translate("hello")
-        if not test_translation:
-            raise ValueError("Empty translation result")
-    except Exception as e:
-        status["services"]["translation"] = f"error: {str(e)}"
-        status["status"] = "degraded"
+    # # Check translation service
+    # try:
+    #     translator = GoogleTranslator(source='en', target='es')
+    #     test_translation = translator.translate("hello")
+    #     if not test_translation:
+    #         raise ValueError("Empty translation result")
+    # except Exception as e:
+    #     status["services"]["translation"] = f"error: {str(e)}"
+    #     status["status"] = "degraded"
     
-    return status
+    # return status
 
 @app.get("/languages")
 async def get_available_languages():
@@ -602,46 +602,46 @@ async def detect_language(request: LanguageDetectionRequest):
             error=str(e)
         )
 
-@app.post("/text-to-speech")
-async def convert_text_to_speech(request: TextToSpeechRequest, background_tasks: BackgroundTasks = None):
-    """
-    Convert text to speech using ElevenLabs API and return audio URL.
-    """
-    try:
-        logger.info(f"Converting text to speech: {request.text[:50]}...")
+# @app.post("/text-to-speech")
+# async def convert_text_to_speech(request: TextToSpeechRequest, background_tasks: BackgroundTasks = None):
+#     """
+#     Convert text to speech using ElevenLabs API and return audio URL.
+#     """
+#     try:
+#         logger.info(f"Converting text to speech: {request.text[:50]}...")
         
-        # Convert text to speech
-        audio_data = voice_agent.text_to_speech.convert_to_speech(request.text)
+#         # Convert text to speech
+#         audio_data = voice_agent.text_to_speech.convert_to_speech(request.text)
         
-        if not audio_data:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to convert text to speech"
-            )
+#         if not audio_data:
+#             raise HTTPException(
+#                 status_code=500,
+#                 detail="Failed to convert text to speech"
+#             )
             
-        # Save audio to temporary file
-        temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.mp3"
-        with open(temp_output, "wb") as f:
-            f.write(audio_data)
+#         # Save audio to temporary file
+#         temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.mp3"
+#         with open(temp_output, "wb") as f:
+#             f.write(audio_data)
             
-        # Schedule cleanup of temporary files
-        if background_tasks:
-            background_tasks.add_task(cleanup_old_files, TEMP_DIR)
+#         # Schedule cleanup of temporary files
+#         if background_tasks:
+#             background_tasks.add_task(cleanup_old_files, TEMP_DIR)
         
-        # Generate URL for audio file
-        audio_url = f"/audio/{temp_output.name}"
+#         # Generate URL for audio file
+#         audio_url = f"/audio/{temp_output.name}"
         
-        return {
-            "success": True,
-            "audio_url": audio_url
-        }
+#         return {
+#             "success": True,
+#             "audio_url": audio_url
+#         }
         
-    except Exception as e:
-        logger.error(f"Error converting text to speech: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error converting text to speech: {str(e)}"
-        )
+#     except Exception as e:
+#         logger.error(f"Error converting text to speech: {e}")
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error converting text to speech: {str(e)}"
+#         )
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
