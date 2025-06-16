@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from deep_translator import GoogleTranslator
 from deep_translator.exceptions import LanguageNotSupportedException
 from cachetools import TTLCache
+from contextlib import asynccontextmanager
 
 # Import our agent implementations
 from agent import QuantAIAgent
@@ -45,11 +46,23 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Initialize FastAPI app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    logger.info("Starting QuantAI Hospital API Server")
+    cleanup_old_files(TEMP_DIR)
+    yield
+    # Shutdown
+    logger.info("Shutting down QuantAI Hospital API Server")
+    cleanup_old_files(TEMP_DIR)
+
+# Initialize FastAPI app with lifespan
 app = FastAPI(
     title="QuantAI Hospital API",
     description="API server for QuantAI Hospital's text and voice processing capabilities",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -155,18 +168,6 @@ def validate_wav_file(audio_data: bytes) -> bool:
     except Exception as e:
         logger.error(f"Error validating WAV file: {e}")
         return False
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize resources on server startup."""
-    logger.info("Starting QuantAI Hospital API Server")
-    cleanup_old_files(TEMP_DIR)
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup resources on server shutdown."""
-    logger.info("Shutting down QuantAI Hospital API Server")
-    cleanup_old_files(TEMP_DIR)
 
 @app.post("/text-query", response_model=TextResponse)
 async def process_text_query(query: TextQuery):
@@ -662,7 +663,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
-        port=8000,  # Changed port from 8000 to 8080
+        port=8005,  # Changed port from 8000 to 8080
         reload=True,
         log_level="info"
     ) 
