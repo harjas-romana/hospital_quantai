@@ -27,18 +27,19 @@ pydantic>=2.4.0
 SpeechRecognition>=3.10.0
 pyaudio>=0.2.13
 pydub>=0.25.1
-wave>=0.0.2
+# wave is a built-in Python module, not a PyPI package
 
 # Text-to-Speech
-TTS>=0.22.0  # For server.py
-torch>=2.1.0
-torchaudio>=2.1.0
+# Using Coqui TTS with compatible version constraint
+TTS==0.21.3  # Fixed version that works with Python 3.7-3.11
+torch>=2.0.0
+torchaudio>=2.0.0
 
 # Utilities
 colorama>=0.4.6
 tqdm>=4.65.0
 cachetools>=5.3.0
-pathlib>=1.0.1
+# pathlib is built-in for Python 3.4+
 
 # Development Tools
 pytest>=7.4.0
