@@ -1,1104 +1,322 @@
-import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import gsap from 'gsap'
-import './App.css'
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Toaster, toast } from 'react-hot-toast';
 
-const prompts = [
-  'Get fresh perspectives on tricky hospital problems',
-  'Brainstorm healthcare ideas',
-  'Rewrite message for maximum impact',
-  'Summarize key medical points',
-];
-const API_BASE = "https://quantai-hospital-agent.onrender.com"; // Updated
+import { ThemeProvider } from './contexts/ThemeContext';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import TextMode from './components/TextMode';
+import VoiceMode from './components/VoiceMode';
+import SplashScreen from './components/SplashScreen';
+import Hero from './components/Hero';
+import { Message, Mode } from './types';
+import { buttonHover } from './utils/animations';
 
-// Server Status Type
-type ServerStatus = {
-  status: 'online' | 'offline' | 'loading';
-  version: string;
-  lastChecked: Date;
+// Sample welcome message
+const WELCOME_MESSAGE: Message = {
+  id: '1',
+  text: "G'day! I'm the QuantAI Hospital Assistant. How can I help you today?",
+  isUser: false,
+  timestamp: new Date(),
 };
 
-export default function App() {
-  const [messages, setMessages] = useState([
-    { sender: 'bot', text: 'Kia ora! Welcome to QuantAI Hospital. How can I assist you today?' },
-  ]);
-  const [input, setInput] = useState('');
-  const [voiceMode, setVoiceMode] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [splash, setSplash] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [languages, setLanguages] = useState<string[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState('english');
-  const [showLangDropdown, setShowLangDropdown] = useState(false);
-  const [serverStatus, setServerStatus] = useState<ServerStatus>({
-    status: 'loading',
-    version: '',
-    lastChecked: new Date()
-  });
-  const parallaxRefs = [
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-  ];
-  const gradientTextRef = useRef<HTMLDivElement>(null);
+const App: React.FC = () => {
+  const [mode, setMode] = useState<Mode>('text');
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showingSplash, setShowingSplash] = useState(true);
+  const [chatStarted, setChatStarted] = useState(false);
 
-  // Add a mapping for language logos/icons (move inside component for JSX scope)
-  const languageIcons: Record<string, React.ReactNode> = {
-    english: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#22d3ee" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">EN</text></svg>
-    ),
-    spanish: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#f87171" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">ES</text></svg>
-    ),
-    french: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#60a5fa" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">FR</text></svg>
-    ),
-    german: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#fbbf24" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">DE</text></svg>
-    ),
-    hindi: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#a3e635" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">HI</text></svg>
-    ),
-    chinese: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#f59e42" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">中</text></svg>
-    ),
-    japanese: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#fbbf24" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">日</text></svg>
-    ),
-    italian: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#34d399" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">IT</text></svg>
-    ),
-    russian: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#818cf8" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">RU</text></svg>
-    ),
-    arabic: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#fbbf24" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">ع</text></svg>
-    ),
-    portuguese: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#10b981" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">PT</text></svg>
-    ),
-    korean: (
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f472b6" /><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">한</text></svg>
-    ),
-    // Add more as needed
-  };
-
-  // Check server health status
   useEffect(() => {
-    const checkServerHealth = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/health`);
-        const data = await res.json();
-        setServerStatus({
-          status: 'online',
-          version: data.version || '1.0.0',
-          lastChecked: new Date()
-        });
-      } catch (e) {
-        setServerStatus(prev => ({
-          ...prev,
-          status: 'offline',
-          lastChecked: new Date()
-        }));
-      }
-    };
-
-    checkServerHealth();
-    const interval = setInterval(checkServerHealth, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch languages for dropdown
-  useEffect(() => {
-    fetch(`${API_BASE}/languages`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.languages)) {
-          setLanguages(data.languages);
-        }
-      });
-  }, []);
-
-  // Moving gradient animation
-  useEffect(() => {
-    if (gradientTextRef.current) {
-      gsap.to(gradientTextRef.current, {
-        backgroundPosition: '200% center',
-        duration: 10,
-        repeat: -1,
-        ease: 'none'
-      });
-    }
-  }, []);
-
-  // Enhanced splash screen effect with staggered animations
-  useEffect(() => {
-    const timer = setTimeout(() => setSplash(false), 3000);
+    // Force dark mode
+    document.documentElement.classList.add('dark');
+    
+    // Hide splash screen after it completes
+    const timer = setTimeout(() => {
+      setShowingSplash(false);
+    }, 3000);
+    
     return () => clearTimeout(timer);
   }, []);
 
-  // 3D Parallax effect with GSAP and floating elements
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const { innerWidth, innerHeight } = window;
-      const x = (e.clientX / innerWidth - 0.5);
-      const y = (e.clientY / innerHeight - 0.5);
-      gsap.to(parallaxRefs[0].current, { x: x * 40, y: y * 40, duration: 0.7, ease: 'power2.out' });
-      gsap.to(parallaxRefs[1].current, { x: x * 80, y: y * 80, duration: 0.9, ease: 'power2.out' });
-      gsap.to(parallaxRefs[2].current, { x: x * 120, y: y * 120, duration: 1.1, ease: 'power2.out' });
-      gsap.to(parallaxRefs[3].current, { x: x * 160, y: y * 160, duration: 1.3, ease: 'power2.out' });
-      gsap.to(parallaxRefs[4].current, { x: x * 200, y: y * 200, duration: 1.5, ease: 'power2.out' });
-      gsap.to(parallaxRefs[5].current, { x: x * 240, y: y * 240, duration: 1.7, ease: 'power2.out' });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [parallaxRefs]);
+  // Mock function for sending a message to the backend
+  const sendMessageToBackend = async (text: string, language: string): Promise<string> => {
+    // In a real implementation, this would call an API
+    console.log('Sending message to backend:', text, 'lang:', language);
 
-  // Web Speech API for speech-to-text
-
-  // Web Speech API for text-to-speech
-  const speak = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    const utter = new window.SpeechSynthesisUtterance(text);
-    utter.lang = selectedLanguage || 'en-US';
-    window.speechSynthesis.speak(utter);
-  };
-
-  // ElevenLabs text-to-speech
-  const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
-  
-  const speakWithElevenLabs = async (text: string, messageId: number) => {
     try {
-      setIsSpeaking(messageId.toString());
-      const res = await fetch(`${API_BASE}/text-to-speech`, {
+      const res = await fetch('http://localhost:8005/text-query', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text, language })
       });
-      
-      if (!res.ok) throw new Error('TTS server error');
-      
       const data = await res.json();
-      if (data.success && data.audio_url) {
-        // Play the audio
-        const audio = new Audio(`${API_BASE}${data.audio_url}`);
-        audio.play();
-        
-        // Reset speaking state when audio finishes playing
-        audio.onended = () => {
-          setIsSpeaking(null);
-        };
+      if (data.success && data.response) {
+        return data.response;
       }
-    } catch (e) {
-      console.error('ElevenLabs TTS error:', e);
-      setError('Error generating speech. Falling back to browser TTS.');
-      // Fallback to browser TTS
-      speak(text);
-      setIsSpeaking(null);
-    } finally {
-      // Don't reset here, we'll reset when audio finishes playing
+    } catch (err) {
+      console.error('API call failed, falling back to mock response', err);
     }
+    
+    // Simulate a delay for a more realistic experience
+    await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+    
+    // Mock response with different types of responses
+    const responses = [
+      `I understand you're asking about "${text}". Here's what I can tell you based on our hospital procedures and guidelines.`,
+      `Regarding "${text}", according to our standard operating procedures, here are the key points you should know.`,
+      `For your question about "${text}", I can provide guidance based on our current protocols and best practices.`,
+      `Let me help you with "${text}". This is covered in our hospital manual under the relevant section.`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
   };
 
-  // Send text to backend
-  const sendText = async (text: string) => {
-    setMessages((msgs) => [...msgs, { sender: 'user', text }]);
-    setInput('');
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/text-query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, language: selectedLanguage }),
-      });
-      if (!res.ok) throw new Error('Server error');
-      const data = await res.json();
-      setMessages((msgs) => [...msgs, { sender: 'bot', text: data.response }]);
-      // We're not auto-speaking anymore since we have a dedicated button for ElevenLabs TTS
-    } catch (e) {
-      setError('Sorry, there was an error connecting to QuantAI Hospital.');
-      setMessages((msgs) => [...msgs, { sender: 'bot', text: 'Sorry, there was an error.' }]);
-    } finally {
-      setLoading(false);
+  // Handler for sending text messages
+  const handleSendTextMessage = async (text: string, language: string) => {
+    if (!chatStarted) {
+      setChatStarted(true);
     }
-  };
-
-  // Voice recording (for voice mode)
-  const handleVoiceInput = async () => {
-    if (!('MediaRecorder' in window)) {
-      setError('Voice recording not supported in this browser.');
-      return;
-    }
-    setError(null);
+    
+    // Add user message to chat
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text,
+      isUser: true,
+      timestamp: new Date(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000
-        } 
-      });
+      // Get response from backend
+      const response = await sendMessageToBackend(text, language);
       
-      // Use audio/wav directly if supported
-      const mimeType = MediaRecorder.isTypeSupported('audio/wav') 
-        ? 'audio/wav' 
-        : 'audio/webm';
-      
-      const recorder = new MediaRecorder(stream, {
-        mimeType: mimeType,
-        audioBitsPerSecond: 16000
-      });
-      
-      const chunks: BlobPart[] = [];
-      
-      recorder.ondataavailable = (e) => chunks.push(e.data);
-      recorder.onstop = async () => {
-        try {
-          const audioBlob = new Blob(chunks, { type: mimeType });
-          
-          // Always convert to WAV format to ensure compatibility
-          const wavBlob = await convertAudioToWav(audioBlob);
-          console.log('Audio converted to WAV format');
-          
-          await sendVoice(wavBlob);
-          stream.getTracks().forEach(track => track.stop());
-        } catch (error) {
-          console.error('Error processing audio:', error);
-          setError('Error processing audio. Please try again.');
-          setListening(false);
-        }
+      // Add bot response to chat
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response,
+        isUser: false,
+        timestamp: new Date(),
       };
       
-      recorder.start();
-      setListening(true);
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
       
-      // Stop recording after 4 seconds
-      setTimeout(() => {
-        if (recorder.state === 'recording') {
-          recorder.stop();
-          setListening(false);
-        }
-      }, 4000);
-      
-    } catch (e) {
-      console.error('Microphone error:', e);
-      setError('Error accessing microphone. Please check permissions.');
-      setListening(false);
+      // Show error toast
+      toast.error('Failed to send message. Please try again.', {
+        duration: 4000,
+        position: 'top-right',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Convert any audio format to WAV
-  const convertAudioToWav = async (audioBlob: Blob): Promise<Blob> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Create an audio context
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-          sampleRate: 16000
-        });
-        
-        // Read the audio data
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        
-        // Decode the audio data
-        audioContext.decodeAudioData(arrayBuffer, (audioBuffer) => {
-          // Get the raw PCM data
-          const numberOfChannels = 1; // Mono
-          const sampleRate = 16000;
-          const length = audioBuffer.length;
-          
-          // Create WAV header
-          const wavHeader = createWavHeader(length, numberOfChannels, sampleRate, 16);
-          
-          // Get audio data
-          const channelData = audioBuffer.getChannelData(0);
-          const samples = new Int16Array(length);
-          
-          // Convert float32 to int16
-          for (let i = 0; i < length; i++) {
-            const s = Math.max(-1, Math.min(1, channelData[i]));
-            samples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-          }
-          
-          // Combine header and samples
-          const wavBytes = new Uint8Array(wavHeader.length + samples.byteLength);
-          wavBytes.set(wavHeader, 0);
-          wavBytes.set(new Uint8Array(samples.buffer), wavHeader.length);
-          
-          // Create WAV blob
-          const wavBlob = new Blob([wavBytes], { type: 'audio/wav' });
-          resolve(wavBlob);
-        }, (err) => {
-          console.error('Error decoding audio:', err);
-          reject(err);
-        });
-      } catch (error) {
-        console.error('Error converting audio:', error);
-        reject(error);
-      }
-    });
-  };
-  
-  // Create a proper WAV header
-  const createWavHeader = (dataLength: number, numChannels: number, sampleRate: number, bitsPerSample: number): Uint8Array => {
-    const header = new ArrayBuffer(44);
-    const view = new DataView(header);
-    
-    // RIFF identifier
-    writeString(view, 0, 'RIFF');
-    // File length
-    view.setUint32(4, 36 + dataLength * 2, true);
-    // WAVE identifier
-    writeString(view, 8, 'WAVE');
-    // Format chunk marker
-    writeString(view, 12, 'fmt ');
-    // Format chunk length
-    view.setUint32(16, 16, true);
-    // Sample format (1 is PCM)
-    view.setUint16(20, 1, true);
-    // Channel count
-    view.setUint16(22, numChannels, true);
-    // Sample rate
-    view.setUint32(24, sampleRate, true);
-    // Byte rate (sample rate * block align)
-    view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
-    // Block align (channel count * bytes per sample)
-    view.setUint16(32, numChannels * bitsPerSample / 8, true);
-    // Bits per sample
-    view.setUint16(34, bitsPerSample, true);
-    // Data chunk marker
-    writeString(view, 36, 'data');
-    // Data chunk length
-    view.setUint32(40, dataLength * 2, true);
-    
-    return new Uint8Array(header);
-  };
-
-  // Helper function to write strings to DataView
-  const writeString = (view: DataView, offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+  // Handler for sending voice messages
+  const handleSendVoiceMessage = async (audioBlob?: Blob, language: string = 'english') => {
+    if (!chatStarted) {
+      setChatStarted(true);
     }
-  };
-
-  // Send voice to backend
-  const sendVoice = async (blob: Blob) => {
-    setMessages((msgs) => [...msgs, { sender: 'user', text: '[Voice message sent]' }]);
-    setInput('');
-    setLoading(true);
-    setError(null);
     
-    const formData = new FormData();
-    formData.append('audio_file', blob, 'voice.wav');
+    // Add user voice message indicator to chat
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: "[Voice message sent]",
+      isUser: true,
+      timestamp: new Date(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
     
     try {
-      console.log('Sending voice data to server...');
-      const res = await fetch(`${API_BASE}/voice-query`, {
-        method: 'POST',
-        body: formData,
+      // Get response from backend (in a real implementation, we would send the audio blob)
+      const response = await sendMessageToBackend("Voice message transcription would go here", language);
+      
+      // Add bot response to chat
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response,
+        isUser: false,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error sending voice message:', error);
+      
+      // Show error toast
+      toast.error('Failed to process voice message. Please try again.', {
+        duration: 4000,
+        position: 'top-right',
       });
-      
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ detail: 'Server error' }));
-        console.error('Voice query error:', data);
-        if (data.detail && data.detail.includes('Could not understand audio input')) {
-          setError('Sorry, I could not understand your voice. Please try again or speak more clearly.');
-          setMessages((msgs) => [...msgs, { sender: 'bot', text: 'Sorry, I could not understand your voice. Please try again or speak more clearly.' }]);
-        } else {
-          throw new Error('Server error');
-        }
-        return;
-      }
-      
-      const data = await res.json();
-      console.log('Voice response received:', data);
-      setMessages((msgs) => [...msgs, { sender: 'bot', text: data.text }]);
-      
-      // We'll let the user click the speak button to hear the response
-      // This gives them control over when to play audio
-      
-    } catch (e) {
-      console.error('Voice query error:', e);
-      setError('Sorry, there was an error connecting to QuantAI Hospital.');
-      setMessages((msgs) => [...msgs, { sender: 'bot', text: 'Sorry, there was an error.' }]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  // Handle form submit
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-    if (voiceMode && input.trim()) {
-      await sendText(input);
-    } else {
-      await sendText(input);
+  // Handle switching between Text and Voice modes with animation
+  const handleModeChange = (newMode: Mode) => {
+    if (mode === newMode) return;
+    
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setMode(newMode);
+      setIsTransitioning(false);
+    }, 300);
+  };
+
+  // Handle settings toggle
+  const handleSettingsToggle = () => {
+    setShowSettings(!showSettings);
+  };
+
+  // Handle starting chat from hero section
+  const handleStartChat = (initialText?: string) => {
+    setChatStarted(true);
+    if (initialText) {
+      handleSendTextMessage(initialText, 'english');
     }
   };
 
-  // Floating animated elements for extra polish
-  const floatingShapes = [
-    { className: 'bg-green-200', size: 32, top: '10%', left: '5%', delay: 0 },
-    { className: 'bg-green-300', size: 20, top: '80%', left: '80%', delay: 0.5 },
-    { className: 'bg-teal-200', size: 16, top: '60%', left: '20%', delay: 1 },
-    { className: 'bg-green-100', size: 24, top: '30%', left: '90%', delay: 1.5 },
-    { className: 'bg-teal-100', size: 14, top: '75%', left: '10%', delay: 2 },
-  ];
+  // If splash screen is showing, render only the splash screen
+  if (showingSplash) {
+    return <SplashScreen onComplete={() => setShowingSplash(false)} />;
+  }
+
+  const pageTransition = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        duration: 0.6,
+        ease: [0.6, -0.05, 0.01, 0.99]
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      y: -20,
+      transition: {
+        duration: 0.4
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-green-50 to-white relative overflow-hidden">
-      {/* Advanced 3D Splash Screen with Parallax */}
-      <AnimatePresence>
-        {splash && (
-          <motion.div
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden perspective-1000"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1 }}
-          >
-            {/* Animated Background Elements */}
-            <div className="absolute inset-0 bg-gradient-to-br from-green-100 via-white to-blue-50 z-0" />
-            
-            {/* Parallax Background Elements */}
-            <motion.div 
-              className="absolute inset-0 z-0"
-              animate={{ 
-                backgroundPosition: ['0% 0%', '100% 100%'],
-              }}
-              transition={{ 
-                duration: 20, 
-                ease: "linear", 
-                repeat: Infinity, 
-                repeatType: "reverse" 
-              }}
-              style={{ 
-                backgroundImage: 'radial-gradient(circle at center, rgba(167, 243, 208, 0.2) 0%, transparent 50%)',
-                backgroundSize: '100% 100%',
-              }}
-            />
-            
-            {/* 3D Floating Elements */}
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={`particle-${i}`}
-                className="absolute rounded-full bg-gradient-to-r from-green-200 to-teal-100 shadow-xl"
-                style={{ 
-                  width: 20 + Math.random() * 40,
-                  height: 20 + Math.random() * 40,
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  opacity: 0.4 + Math.random() * 0.3,
-                  filter: 'blur(2px)',
-                  zIndex: 1
-                }}
-                animate={{
-                  x: [
-                    Math.random() * 100 - 50,
-                    Math.random() * 100 - 50,
-                    Math.random() * 100 - 50
-                  ],
-                  y: [
-                    Math.random() * 100 - 50,
-                    Math.random() * 100 - 50,
-                    Math.random() * 100 - 50
-                  ],
-                  scale: [1, 1.1, 0.9, 1],
-                  rotate: [0, 180, 360],
-                }}
-                transition={{
-                  duration: 15 + Math.random() * 15,
-                  repeat: Infinity,
-                  repeatType: "reverse",
-                  ease: "easeInOut"
-                }}
-              />
-            ))}
-            
-            {/* Main Content with Parallax Effect */}
-            <motion.div
-              className="relative z-10 flex flex-col items-center"
-              animate={{ y: [0, -10, 0] }}
-              transition={{ 
-                duration: 6, 
-                repeat: Infinity, 
-                ease: "easeInOut" 
-              }}
-            >
-              {/* Logo with 3D Effect */}
-              <motion.div
-                className="mb-8 relative"
-                initial={{ opacity: 0, y: -50, rotateX: -30 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0, 
-                  rotateX: 0,
-                  filter: ["drop-shadow(0 0 20px rgba(16, 185, 129, 0.7))", "drop-shadow(0 0 10px rgba(16, 185, 129, 0.3))", "drop-shadow(0 0 20px rgba(16, 185, 129, 0.7))"],
-                }}
-                transition={{ 
-                  type: "spring",
-                  stiffness: 100,
-                  damping: 15,
-                  delay: 0.2,
-                  filter: {
-                    duration: 4,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }
-                }}
-              >
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-green-300 to-blue-200 rounded-full -z-10 blur-2xl"
-                  animate={{ 
-                    opacity: [0.5, 0.8, 0.5],
-                    scale: [0.8, 1.1, 0.8],
-                  }}
-                  transition={{ 
-                    duration: 4, 
-                    repeat: Infinity, 
-                    ease: "easeInOut" 
-                  }}
-                />
-                <img 
-                  src="/logoQN.png" 
-                  alt="QuantAI, NZ Logo" 
-                  className="h-40 object-contain relative z-10 drop-shadow-xl"
-                />
-              </motion.div>
-              
-              {/* Title with Animated Gradient */}
-              <motion.div
-                ref={gradientTextRef}
-                className="text-5xl font-black mb-3 tracking-tight relative"
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  type: "spring",
-                  stiffness: 100,
-                  damping: 15,
-                  delay: 0.4 
-                }}
-                style={{
-                  background: 'linear-gradient(-45deg, #22d3ee, #10b981, #3b82f6, #8b5cf6)',
-                  backgroundSize: '400% 400%',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                <motion.span
-                  className="absolute -inset-1 -z-10 blur-md"
-                  style={{
-                    background: 'linear-gradient(-45deg, #22d3ee, #10b981, #3b82f6, #8b5cf6)',
-                    backgroundSize: '400% 400%',
-                    opacity: 0.4,
-                  }}
-                  animate={{ 
-                    backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
-                  }}
-                  transition={{ 
-                    duration: 10, 
-                    repeat: Infinity,
-                    ease: "easeInOut" 
-                  }}
-                />
-                QuantAI Hospital
-              </motion.div>
-              
-              {/* Subtitle with Reveal Animation */}
-              <motion.div
-                className="text-xl text-green-700 font-medium mb-6 relative"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <motion.span
-                  animate={{ 
-                    textShadow: ["0 0 8px rgba(16, 185, 129, 0.7)", "0 0 2px rgba(16, 185, 129, 0.3)", "0 0 8px rgba(16, 185, 129, 0.7)"]
-                  }}
-                  transition={{ 
-                    duration: 3, 
-                    repeat: Infinity,
-                    ease: "easeInOut" 
-                  }}
-                >
-                  Voice Assistant by QuantAI, NZ
-                </motion.span>
-              </motion.div>
-              
-              {/* PoC Disclaimer with Glass Effect */}
-              <motion.div
-                className="bg-white bg-opacity-30 backdrop-blur-md rounded-xl px-8 py-4 max-w-md text-center mb-6 shadow-lg border border-white border-opacity-30"
-                initial={{ opacity: 0, y: 30, rotateX: 20 }}
-                animate={{ opacity: 1, y: 0, rotateX: 0 }}
-                transition={{ 
-                  type: "spring",
-                  stiffness: 100,
-                  damping: 15,
-                  delay: 0.8 
-                }}
-                whileHover={{ scale: 1.02, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
-              >
-                <motion.div 
-                  className="text-amber-600 font-bold mb-2 text-lg"
-                  animate={{ 
-                    textShadow: ["0 0 0px rgba(217, 119, 6, 0)", "0 0 10px rgba(217, 119, 6, 0.5)", "0 0 0px rgba(217, 119, 6, 0)"]
-                  }}
-                  transition={{ 
-                    duration: 2, 
-                    repeat: Infinity,
-                    ease: "easeInOut" 
-                  }}
-                >
-                  Proof of Concept
-                </motion.div>
-                <p className="text-gray-800 text-sm">
-                  This is a QuantAI, NZ Proof of Concept application. It is not intended for production use, 
-                  clinical decision making, or medical advice. All data and interactions are for demonstration purposes only.
-                </p>
-              </motion.div>
-              
-              {/* Server Status with Animated Indicator */}
-              <motion.div
-                className="flex items-center gap-3 bg-white bg-opacity-50 backdrop-blur-sm rounded-full px-4 py-2 shadow-md"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1 }}
-                whileHover={{ scale: 1.05 }}
-              >
-                <motion.span 
-                  className={`w-3 h-3 rounded-full ${
-                    serverStatus.status === 'online' ? 'bg-green-500' : 
-                    serverStatus.status === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-                  }`}
-                  animate={{ 
-                    boxShadow: [
-                      `0 0 0px ${serverStatus.status === 'online' ? '#10b981' : serverStatus.status === 'offline' ? '#ef4444' : '#f59e0b'}`,
-                      `0 0 10px ${serverStatus.status === 'online' ? '#10b981' : serverStatus.status === 'offline' ? '#ef4444' : '#f59e0b'}`,
-                      `0 0 0px ${serverStatus.status === 'online' ? '#10b981' : serverStatus.status === 'offline' ? '#ef4444' : '#f59e0b'}`
-                    ]
-                  }}
-                  transition={{ 
-                    duration: 2, 
-                    repeat: Infinity,
-                    ease: "easeInOut" 
-                  }}
-                />
-                <span className="text-sm font-medium text-gray-700">Server Status: {serverStatus.status}</span>
-                <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">v{serverStatus.version}</span>
-              </motion.div>
-              
-              {/* Loading Indicator */}
-              <motion.div
-                className="mt-8 flex items-center gap-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.2 }}
-              >
-                <motion.div 
-                  className="relative w-8 h-8"
-                  animate={{ rotate: 360 }}
-                  transition={{ 
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "linear" 
-                  }}
-                >
-                  <motion.span 
-                    className="absolute inset-0 rounded-full border-2 border-transparent border-t-green-500"
-                    animate={{ opacity: [1, 0.2, 1] }}
-                    transition={{ 
-                      duration: 1.5,
-                      repeat: Infinity,
-                      ease: "easeInOut" 
-                    }}
-                  />
-                  <motion.span 
-                    className="absolute inset-1 rounded-full border-2 border-transparent border-t-teal-400"
-                    animate={{ 
-                      rotate: -360,
-                      opacity: [0.8, 0.1, 0.8]
-                    }}
-                    transition={{ 
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: "easeInOut" 
-                    }}
-                  />
-                </motion.div>
-                <motion.span 
-                  className="text-sm text-gray-600"
-                  animate={{ opacity: [1, 0.5, 1] }}
-                  transition={{ 
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut" 
-                  }}
-                >
-                  Loading your experience...
-                </motion.span>
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Parallax/animated backgrounds for 3D effect */}
-      <div ref={parallaxRefs[5]} className="absolute inset-0 pointer-events-none z-0" style={{ background: 'radial-gradient(circle at 90% 90%, #a7f3d0 0%, transparent 70%)', opacity: 0.2 }} />
-      <div ref={parallaxRefs[4]} className="absolute inset-0 pointer-events-none z-0" style={{ background: 'radial-gradient(circle at 50% 10%, #bbf7d0 0%, transparent 70%)', opacity: 0.2 }} />
-      <div ref={parallaxRefs[3]} className="absolute inset-0 pointer-events-none z-0" style={{ background: 'radial-gradient(circle at 10% 10%, #a7f3d0 0%, transparent 70%)', opacity: 0.3 }} />
-      <div ref={parallaxRefs[2]} className="absolute inset-0 pointer-events-none z-0" style={{ background: 'radial-gradient(circle at 80% 20%, #bbf7d0 0%, transparent 70%)', opacity: 0.5 }} />
-      <div ref={parallaxRefs[1]} className="absolute inset-0 pointer-events-none z-0" style={{ background: 'radial-gradient(circle at 20% 80%, #6ee7b7 0%, transparent 70%)', opacity: 0.4 }} />
-      <div ref={parallaxRefs[0]} className="absolute inset-0 pointer-events-none z-0" style={{ background: 'radial-gradient(circle at 60% 30%, #bbf7d0 0%, transparent 70%)', opacity: 0.7 }} />
-      {/* Floating animated shapes */}
-      {floatingShapes.map((shape, i) => (
-        <motion.div
-          key={i}
-          className={`absolute z-0 rounded-full ${shape.className}`}
-          style={{ width: shape.size, height: shape.size, top: shape.top, left: shape.left, opacity: 0.5 }}
-          animate={{ y: [0, -10, 0] }}
-          transition={{ repeat: Infinity, duration: 3 + i, delay: shape.delay, ease: 'easeInOut' }}
-        />
-      ))}
-
-      {/* Enhanced Header with Glassmorphism */}
-      <motion.div
-        className="flex flex-col items-center mt-12 mb-8 relative z-10 glass-card p-8 w-full max-w-2xl"
-        initial={{ opacity: 0, y: -40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: 'easeOut' }}
-      >
-        {/* QuantAI Logo */}
-        <motion.div
-          className="mb-4 flex flex-col items-center"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-        >
-          <img 
-            src="/logoQN.png" 
-            alt="QuantAI, NZ Logo" 
-            className="h-16 object-contain mb-2" 
-          />
-          <div className="flex items-center gap-2">
-            <div className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">Proof of Concept</div>
-            <div className="text-xs text-gray-500">Not for clinical use</div>
-          </div>
-        </motion.div>
+    <ThemeProvider>
+      <div className="flex flex-col h-screen bg-black text-white font-['DM_Sans']">
+        {/* Toast Notifications */}
+        <Toaster />
         
-        <h1 className="text-2xl md:text-3xl font-semibold text-center text-black mb-2 moving-gradient text-gradient">Kia ora! Welcome to QuantAI Hospital</h1>
-        <h2 className="text-xl md:text-2xl font-medium text-center text-gray-700">How can I assist you today?</h2>
-        <p className="text-gray-400 text-sm mt-2">Choose a prompt below or write your own to start chatting with QuantAI Hospital</p>
-      </motion.div>
-
-      {/* Language Selector with Fixed Positioning */}
-      <motion.div 
-        className="relative z-20 mb-4 flex justify-center w-full max-w-xl"
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <div className="relative inline-block dropdown-container">
-          <button
-            className={`glass-button flex items-center px-4 py-2 text-green-700 text-sm font-medium ${showLangDropdown ? 'shadow-glow' : ''}`}
-            onClick={() => setShowLangDropdown((v) => !v)}
-            aria-haspopup="listbox"
-            aria-expanded={showLangDropdown}
-            aria-label="Select language"
-          >
-            {languageIcons[selectedLanguage] || <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#a7f3d0" /></svg>}
-            {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
-            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          <AnimatePresence>
-            {showLangDropdown && (
-              <>
-                <motion.div
-                  className="lang-dropdown-overlay"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setShowLangDropdown(false)}
-                />
-                <motion.ul
-                  className="lang-dropdown absolute right-0 mt-2 w-56 overflow-y-auto max-h-72 z-50 smooth-scroll scrollbar-thin"
-                  initial="entering"
-                  animate="entered"
-                  exit="exiting"
-                  variants={{
-                    entering: { opacity: 0, y: -10, scale: 0.95 },
-                    entered: { opacity: 1, y: 0, scale: 1 },
-                    exiting: { opacity: 0, y: -10, scale: 0.95 }
-                  }}
-                  transition={{ 
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 25
-                  }}
-                  tabIndex={-1}
-                  role="listbox"
-                >
-                  {languages.map((lang) => (
-                    <motion.li
-                      key={lang}
-                      className={`lang-option ${selectedLanguage === lang ? 'selected' : ''}`}
-                      onClick={() => {
-                        setSelectedLanguage(lang);
-                        setShowLangDropdown(false);
-                      }}
-                      role="option"
-                      aria-selected={selectedLanguage === lang}
-                      whileHover={{ x: 4 }}
-                      transition={{ type: "spring", stiffness: 300 }}
-                    >
-                      <div className="flex items-center">
-                        {languageIcons[lang] || <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#a7f3d0" /></svg>}
-                        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                      </div>
-                    </motion.li>
-                  ))}
-                </motion.ul>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
-      </motion.div>
-
-      {/* Prompt Buttons */}
-      <motion.div
-        className="flex flex-wrap gap-4 justify-center mb-8 relative z-10"
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: {
-            transition: { staggerChildren: 0.08 },
-          },
-        }}
-      >
-        {prompts.map((prompt, idx) => (
-          <motion.button
-            key={prompt}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow hover:bg-green-50 transition text-gray-700 text-sm font-medium"
-            onClick={() => setInput(prompt)}
-            whileHover={{ scale: 1.07 }}
-            whileTap={{ scale: 0.97 }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 + idx * 0.08, type: 'spring', stiffness: 200 }}
-          >
-            {prompt}
-          </motion.button>
-        ))}
-      </motion.div>
-
-      {/* Enhanced Chat Area with Glassmorphism */}
-      <motion.div
-        className="w-full max-w-xl flex-1 flex flex-col glass-card p-6 mb-8 relative z-10"
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: 'easeOut', delay: 0.3 }}
-      >
-        <div className="flex-1 overflow-y-auto mb-4 space-y-6 scrollbar-thin">
-          <AnimatePresence initial={false}>
-            {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                className={`flex flex-col ${msg.sender === 'bot' ? 'items-start' : 'items-end'}`}
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div 
-                  className={`px-4 py-2 rounded-xl max-w-[80%] ${
-                    msg.sender === 'bot' 
-                      ? 'glass-effect text-gray-800' 
-                      : 'bg-green-500 bg-opacity-90 backdrop-blur-sm text-white'
+        {/* Header - Only show when chat is started */}
+        <AnimatePresence>
+          {chatStarted && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.4 }}
+              className="z-10 relative"
+            >
+              <Header 
+                
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Mode Selector - Only show when chat is started */}
+        <AnimatePresence>
+          {chatStarted && (
+            <motion.div 
+              className="font-['DM_Sans'] container mx-auto px-4 py-3 flex justify-center z-10 relative"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+            >
+              <div className="bg-black/60 rounded-2xl p-1 inline-flex shadow-xl border border-gray-800">
+                <motion.button
+                  onClick={() => handleModeChange('text')}
+                  variants={buttonHover}
+                  whileHover="hover"
+                  whileTap="tap"
+                  className={`px-6 py-3 rounded-xl transition-all duration-300 font-medium ${
+                    mode === 'text'
+                      ? 'bg-police-blue text-white shadow-lg'
+                      : 'text-gray-300 hover:bg-gray-800'
                   }`}
                 >
-                  {msg.text}
-                </div>
-                
-                {/* Speaker button below the message for bot messages */}
-                {msg.sender === 'bot' && (
-                  <motion.button 
-                    onClick={() => speakWithElevenLabs(msg.text, i)}
-                    className={`mt-1 ml-1 flex items-center gap-1 px-2 py-1 ${
-                      isSpeaking === i.toString() 
-                        ? 'bg-green-100' 
-                        : 'bg-white'
-                    } rounded-md shadow-sm hover:bg-green-50 transition text-xs text-green-700`}
-                    title="Listen with ElevenLabs"
-                    whileHover={{ scale: isSpeaking === i.toString() ? 1 : 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    disabled={isSpeaking !== null}
-                  >
-                    {isSpeaking === i.toString() ? (
-                      <>
-                        <svg className="w-4 h-4 text-green-600 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        Speaking...
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-600">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
-                        </svg>
-                        Listen
-                      </>
-                    )}
-                  </motion.button>
-                )}
-              </motion.div>
-            ))}
-            {loading && (
+                  Text Mode
+                </motion.button>
+                <motion.button
+                  onClick={() => handleModeChange('voice')}
+                  variants={buttonHover}
+                  whileHover="hover"
+                  whileTap="tap"
+                  className={`px-6 py-3 rounded-xl transition-all duration-300 font-medium ${
+                    mode === 'voice'
+                      ? 'bg-police-blue text-white shadow-lg'
+                      : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  Voice Mode
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Main Content */}
+        <main className="flex-1 overflow-hidden container mx-auto px-4 py-3 mb-auto relative">
+          <AnimatePresence mode="wait">
+            {!chatStarted ? (
+              <div className="h-full w-full absolute inset-0">
+                <Hero 
+                  onStartChat={handleStartChat} 
+                  onModeChange={handleModeChange} 
+                />
+              </div>
+            ) : (
               <motion.div
-                className="flex justify-start"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                key="chat"
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                variants={pageTransition}
+                className={`rounded-2xl h-full overflow-hidden ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
               >
-                <div className="glass-effect px-4 py-2 rounded-xl text-green-700 max-w-[80%] animate-pulse">
-                  QuantAI Hospital is thinking...
-                </div>
+                {mode === 'text' ? (
+                  <TextMode
+                    messages={messages}
+                    onSendMessage={handleSendTextMessage}
+                    isLoading={isLoading}
+                  />
+                ) : (
+                  <VoiceMode
+                    messages={messages}
+                    setMessages={setMessages}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <motion.div 
-            className="text-red-500 text-xs mb-2 glass-effect p-2 rounded-lg"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            {error}
-          </motion.div>
-        )}
-
-        {/* Enhanced Input Area */}
-        <form className="flex items-center gap-2" onSubmit={handleSubmit}>
-          <div className="relative flex-1">
-            <input
-              className={`w-full px-4 py-2 pr-12 glass-button focus:shadow-glow transition-all duration-200 ${
-                voiceMode ? 'text-green-900' : ''
-              }`}
-              placeholder="How can QuantAI Hospital help you today?"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              disabled={listening || loading}
-            />
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <motion.button
-              type="button"
-              className={`glass-button p-2 ${voiceMode ? 'shadow-glow' : ''}`}
-              onClick={() => setVoiceMode(v => !v)}
-              disabled={loading}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <span className="relative flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 text-green-500 ${listening ? 'animate-pulse' : ''}`}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75v1.5m0 0h3m-3 0H9m6-6a3 3 0 11-6 0V6a3 3 0 016 0v7.5z" />
-                </svg>
-                {listening && (
-                  <motion.span
-                    className="absolute w-8 h-8 rounded-full border-2 border-green-300"
-                    initial={{ scale: 0.8, opacity: 0.8 }}
-                    animate={{ scale: 1.5, opacity: 0 }}
-                    transition={{ duration: 1, repeat: Infinity }}
-                  />
-                )}
-              </span>
-            </motion.button>
-
-            {voiceMode ? (
-              <motion.button
-                type="button"
-                className={`glass-button px-4 py-2 text-green-700 ${listening || loading ? 'opacity-50' : ''}`}
-                onClick={handleVoiceInput}
-                disabled={listening || loading}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {listening ? (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                    Listening...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <path d="M12 4v16m8-8H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                    Speak
-                  </span>
-                )}
-              </motion.button>
-            ) : (
-              <motion.button
-                type="submit"
-                className="glass-button px-4 py-2 text-green-700"
-                disabled={loading}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Send
-              </motion.button>
-            )}
-          </div>
-        </form>
-
-        {/* Footer Info */}
-        <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
-          <img src="/logoQN.png" alt="QuantAI Logo" className="h-4 object-contain" />
-          <span>QuantAI Hospital Voice Assistant</span>
-          <span className="glass-effect px-2 py-0.5 rounded bg-amber-50 text-amber-700">PoC</span>
-        </div>
-        <div className="text-gray-400 text-xs mt-1 glass-effect px-3 py-1 rounded-lg">
-          <strong className="text-amber-600">Disclaimer:</strong> This QuantAI Hospital Assistant is a Proof of Concept (PoC) 
-          by QuantAI, NZ. Not intended for clinical decision making, medical advice, or production use.
-        </div>
-      </motion.div>
-
-      {/* Enhanced Server Status Indicator */}
-      <motion.div 
-        className="fixed bottom-4 right-4 glass-card px-4 py-2 flex items-center gap-2"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 2 }}
-      >
-        <motion.span 
-          className={`w-2 h-2 rounded-full ${
-            serverStatus.status === 'online' ? 'bg-green-500' : 
-            serverStatus.status === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-          }`}
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-        <span className="text-sm text-gray-600">
-          {serverStatus.status === 'online' ? 'Connected' : 
-           serverStatus.status === 'offline' ? 'Disconnected' : 'Connecting...'}
-        </span>
-      </motion.div>
-
-      {/* Keyboard Shortcut Hint */}
-      <div className="text-gray-400 text-xs mb-4 relative z-10 glass-effect px-3 py-1 rounded-full">
-        Use <kbd className="bg-white bg-opacity-20 px-1 rounded">shift + return</kbd> for new line
+        </main>
+        
+        {/* Footer */}
+        <Footer />
+        
       </div>
-    </div>
+    </ThemeProvider>
   );
-}
+};
+
+export default App; 

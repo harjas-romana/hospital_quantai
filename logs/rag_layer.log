@@ -1,0 +1,161 @@
+2025-06-19 20:09:16,665 - __main__ - INFO - Loaded au_police_officers.csv
+2025-06-19 20:09:16,673 - __main__ - INFO - Loaded au_police_crime_incidents.csv
+2025-06-19 20:09:16,681 - __main__ - INFO - Loaded au_police_case_management.csv
+2025-06-19 20:09:16,689 - __main__ - INFO - Loaded au_police_patrol_logs.csv
+2025-06-19 20:09:16,692 - __main__ - INFO - Loaded au_police_equipment_inventory.csv
+2025-06-19 20:09:16,693 - __main__ - INFO - Loaded au_police_community_engagement.csv
+2025-06-19 20:09:16,698 - __main__ - INFO - Loaded au_police_training_certifications.csv
+2025-06-19 20:09:16,699 - __main__ - INFO - Loaded au_police_internal_affairs.csv
+2025-06-19 20:09:16,702 - __main__ - INFO - Loaded au_police_emergency_response.csv
+2025-06-19 20:09:16,714 - __main__ - INFO - Loaded au_police_specialized_operations.csv
+2025-06-19 20:09:16,716 - __main__ - INFO - Loaded au_police_indigenous_engagement.csv
+2025-06-19 20:09:16,719 - __main__ - INFO - Loaded au_police_maritime_operations.csv
+2025-06-19 20:09:16,723 - __main__ - INFO - Loaded au_police_cybercrime_operations.csv
+2025-06-19 20:09:16,725 - __main__ - INFO - Loaded au_police_counter_terrorism_operations.csv
+2025-06-19 20:09:16,725 - __main__ - INFO - Successfully loaded available Australian Police synthetic data
+2025-06-20 14:40:51,696 - __main__ - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 14:40:51,746 - __main__ - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 14:40:51,788 - __main__ - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 14:40:51,806 - __main__ - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 14:40:51,807 - __main__ - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 14:40:51,810 - __main__ - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 14:48:22,470 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 14:48:22,514 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 14:48:22,556 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 14:48:22,574 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 14:48:22,576 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 14:48:22,578 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 14:48:24,563 - __main__ - INFO - Australian Police Agent initialized successfully
+2025-06-20 14:48:27,433 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 14:48:47,361 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 14:52:40,461 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 14:52:40,504 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 14:52:40,546 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 14:52:40,563 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 14:52:40,566 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 14:52:40,568 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 14:52:42,281 - __main__ - INFO - Australian Police Agent initialized successfully
+2025-06-20 14:52:43,873 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 14:58:20,510 - __main__ - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 14:58:20,562 - __main__ - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 14:58:20,608 - __main__ - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 14:58:20,628 - __main__ - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 14:58:20,630 - __main__ - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 14:58:20,633 - __main__ - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 14:58:24,077 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 14:58:24,126 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 14:58:24,173 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 14:58:24,192 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 14:58:24,193 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 14:58:24,195 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 14:58:30,009 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 14:58:32,287 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:08:49,162 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:08:49,205 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:08:49,246 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:08:49,264 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:08:49,266 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:08:49,269 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:08:50,944 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 15:08:52,502 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:09:09,464 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:12:32,869 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:12:38,436 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:12:38,479 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:12:38,520 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:12:38,538 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:12:38,540 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:12:38,543 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:12:40,131 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 15:12:41,848 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:12:45,823 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x15d277640>
+2025-06-20 15:12:45,823 - asyncio - ERROR - Unclosed connector
+connections: ['[(<aiohttp.client_proto.ResponseHandler object at 0x160cc7f40>, 20235.00759125)]']
+connector: <aiohttp.connector.TCPConnector object at 0x15d2752a0>
+2025-06-20 15:12:48,586 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:12:48,631 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:12:48,683 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:12:48,702 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:12:48,704 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:12:48,707 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:19:52,831 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:19:52,875 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:19:52,914 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:19:52,931 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:19:52,933 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:19:52,936 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:19:54,590 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 15:19:56,860 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:20:18,759 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:24:05,238 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:24:08,128 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x157648340>
+2025-06-20 15:24:08,128 - asyncio - ERROR - Unclosed connector
+connections: ['[(<aiohttp.client_proto.ResponseHandler object at 0x1625c52a0>, 20918.408330708)]']
+connector: <aiohttp.connector.TCPConnector object at 0x157648550>
+2025-06-20 15:24:10,453 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:24:10,497 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:24:10,540 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:24:10,560 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:24:10,562 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:24:10,565 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:24:12,149 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 15:24:28,952 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:24:54,574 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:25:02,873 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:25:11,218 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x1319a6950>
+2025-06-20 15:25:11,218 - asyncio - ERROR - Unclosed connector
+connections: ['[(<aiohttp.client_proto.ResponseHandler object at 0x132c81900>, 20975.976118)]']
+connector: <aiohttp.connector.TCPConnector object at 0x1319a68f0>
+2025-06-20 15:27:22,984 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:27:23,029 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:27:23,070 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:27:23,089 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:27:23,091 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:27:23,094 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:27:59,802 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 15:28:03,533 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:28:35,369 - rag_layer - ERROR - get_relevant_data error: 'dict' object has no attribute 'columns'
+2025-06-20 15:29:05,407 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x154fb3a30>
+2025-06-20 15:40:51,649 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 15:40:51,694 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 15:40:51,733 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 15:40:51,751 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 15:40:51,752 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 15:40:51,755 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 15:40:53,422 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 21:03:44,610 - __main__ - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 21:03:44,663 - __main__ - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 21:03:44,706 - __main__ - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 21:03:44,730 - __main__ - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 21:03:44,732 - __main__ - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 21:03:44,735 - __main__ - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 21:04:03,785 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 21:04:03,834 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 21:04:03,875 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 21:04:03,892 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 21:04:03,895 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 21:04:03,898 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 21:04:05,641 - __main__ - INFO - QuantAI Hospital Agent initialized successfully
+2025-06-20 21:04:10,410 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:04:17,600 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:04:29,855 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:04:39,763 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:04:44,257 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:04:50,209 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:04:57,278 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-20 21:08:46,014 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 21:08:46,060 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 21:08:46,101 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 21:08:46,118 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 21:08:46,121 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 21:08:46,123 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv
+2025-06-20 21:19:39,267 - rag_layer - INFO - Loaded quantai_hospital_appointments.csv
+2025-06-20 21:19:39,312 - rag_layer - INFO - Loaded quantai_hospital_patients.csv
+2025-06-20 21:19:39,351 - rag_layer - INFO - Loaded quantai_hospital_medical_history.csv
+2025-06-20 21:19:39,369 - rag_layer - INFO - Loaded quantai_hospital_staff_schedule.csv
+2025-06-20 21:19:39,372 - rag_layer - INFO - Loaded quantai_hospital_equipment_maintenance.csv
+2025-06-20 21:19:39,374 - rag_layer - INFO - Loaded quantai_hospital_inventory_management.csv

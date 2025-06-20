@@ -1,8 +1,7 @@
 """
-QuantAI Hospital AI Assistant
-Advanced implementation integrating OPENROUTER's QWEN AI for context-aware, multilingual healthcare communication.
-This module provides sophisticated response generation and language handling specifically tailored for
-QuantAI Hospital's healthcare context, ensuring professional, accurate, and empathetic communication.
+QuantAI Hospital Assistant (Auckland, New Zealand)
+Advanced implementation integrating OpenRouter LLM for context-aware, multilingual hospital communication.
+All logic, prompts, and responses are strictly focused on QuantAI Hospital's operations in Auckland, New Zealand.
 """
 
 import os
@@ -28,12 +27,16 @@ from pathlib import Path
 import logging
 from datetime import datetime
 from fuzzywuzzy import fuzz, process
+import asyncio
+import aiohttp
+import rag_layer  # Import the QuantAI Hospital RAG system
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('quantai_agent.log'),
+        logging.FileHandler('logs/quantai_agent.log'),
         logging.StreamHandler()
     ]
 )
@@ -235,12 +238,204 @@ class LanguageManager:
             else:
                 print(f"{Fore.RED}Invalid language selection. Please try again.{Style.RESET_ALL}")
 
-class QuantAIAgent:
-    """Advanced AI agent for QuantAI Hospital with enhanced context awareness and response generation."""
+class ConversationContext:
+    """Manages conversation context for enhanced follow-up query handling, entity tracking, and pronoun resolution."""
+    
+    def __init__(self, max_history: int = 10):
+        self.max_history = max_history
+        self.conversation_history = []
+        self.last_entities = {}
+        self.last_subject = None
+        self.last_query_type = None
+        self.last_doctor = None
+        self.last_department = None
+        self.last_patient = None
+        self.last_topic = None
+        
+    def add_interaction(self, query: str, response: str, query_type: str = None, entities: dict = None):
+        """Add a query-response pair to the conversation history and update tracked entities."""
+        self.conversation_history.append({
+            'query': query,
+            'response': response,
+            'timestamp': datetime.now(),
+            'query_type': query_type,
+            'entities': entities or {}
+        })
+        if len(self.conversation_history) > self.max_history:
+            self.conversation_history.pop(0)
+        # Update tracked entities
+        if entities:
+            if 'doctor' in entities:
+                self.last_doctor = entities['doctor']
+            if 'department' in entities:
+                self.last_department = entities['department']
+            if 'patient' in entities:
+                self.last_patient = entities['patient']
+            if 'topic' in entities:
+                self.last_topic = entities['topic']
+        self.last_entities = entities or {}
+        self.last_query_type = query_type
+        
+    def get_relevant_context(self, current_query: str) -> str:
+        """Get relevant context from conversation history for the current query."""
+        context_parts = []
+        if self.last_doctor:
+            context_parts.append(f"Doctor: {self.last_doctor}")
+        if self.last_department:
+            context_parts.append(f"Department: {self.last_department}")
+        if self.last_patient:
+            context_parts.append(f"Patient: {self.last_patient}")
+        if self.last_topic:
+            context_parts.append(f"Topic: {self.last_topic}")
+        if self.conversation_history:
+            last = self.conversation_history[-1]
+            context_parts.append(f"Previous Query: {last['query']}")
+            context_parts.append(f"Previous Response: {last['response'][:100]}")
+        return "\n".join(context_parts)
+    
+    def extract_entities(self, text: str) -> dict:
+        """Extract key entities (doctor, department, patient, etc.) from text for context tracking."""
+        entities = {}
+        # Simple regex-based extraction for demo purposes
+        doctor_match = re.search(r"Dr\.\s*([A-Za-z]+)", text)
+        if doctor_match:
+            entities['doctor'] = doctor_match.group(0)
+        department_match = re.search(r"(cardiology|emergency|pediatrics|radiology|surgery|icu|ward)", text, re.I)
+        if department_match:
+            entities['department'] = department_match.group(0).capitalize()
+        patient_match = re.search(r"patient\s*([A-Za-z]+)", text, re.I)
+        if patient_match:
+            entities['patient'] = patient_match.group(1)
+        # Add more entity extraction as needed
+        return entities
+    
+    def resolve_pronouns(self, query: str) -> str:
+        """Replace pronouns in the query with the last known entity for clarity."""
+        pronoun_map = {
+            'he': self.last_doctor or self.last_patient,
+            'she': self.last_doctor or self.last_patient,
+            'they': self.last_doctor or self.last_patient,
+            'him': self.last_doctor or self.last_patient,
+            'her': self.last_doctor or self.last_patient,
+            'doctor': self.last_doctor,
+            'department': self.last_department,
+            'patient': self.last_patient
+        }
+        for pronoun, entity in pronoun_map.items():
+            if entity and re.search(rf'\b{pronoun}\b', query, re.I):
+                query = re.sub(rf'\b{pronoun}\b', entity, query, flags=re.I)
+        return query
+
+class EnhancedTranslator:
+    """Enhanced translation manager with caching and async support."""
+    
+    def __init__(self, cache_ttl: int = 3600):
+        self.translation_cache = TTLCache(maxsize=1000, ttl=cache_ttl)
+        self.language_cache = {}
+        self.lock = asyncio.Lock()
+        self.batch_size = 1000  # Characters per batch for chunked translation
+        
+    async def translate_text(self, text: str, target_language: str) -> str:
+        """Translate text to target language with caching and chunking."""
+        if not text or target_language == 'english':
+            return text
+            
+        # Check cache first
+        cache_key = f"{text[:50]}_{target_language}"
+        if cache_key in self.translation_cache:
+            return self.translation_cache[cache_key]
+            
+        try:
+            async with self.lock:  # Ensure thread safety
+                # Split text into manageable chunks
+                chunks = self._split_into_chunks(text)
+                translated_chunks = []
+                
+                translator = GoogleTranslator(source='english', target=target_language)
+                
+                for chunk in chunks:
+                    chunk_cache_key = f"{chunk}_{target_language}"
+                    if chunk_cache_key in self.translation_cache:
+                        translated_chunk = self.translation_cache[chunk_cache_key]
+                    else:
+                        translated_chunk = translator.translate(chunk)
+                        if translated_chunk:
+                            self.translation_cache[chunk_cache_key] = translated_chunk
+                        else:
+                            translated_chunk = chunk
+                            
+                    translated_chunks.append(translated_chunk)
+                    
+                final_translation = ' '.join(translated_chunks)
+                self.translation_cache[cache_key] = final_translation
+                return final_translation
+                
+        except Exception as e:
+            logger.error(f"Translation error: {e}")
+            return text
+            
+    def _split_into_chunks(self, text: str) -> List[str]:
+        """Split text into chunks for efficient translation."""
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        
+        sentences = sent_tokenize(text)
+        
+        for sentence in sentences:
+            sentence_length = len(sentence)
+            
+            if current_length + sentence_length <= self.batch_size:
+                current_chunk.append(sentence)
+                current_length += sentence_length
+            else:
+                if current_chunk:
+                    chunks.append(' '.join(current_chunk))
+                current_chunk = [sentence]
+                current_length = sentence_length
+                
+        if current_chunk:
+            chunks.append(' '.join(current_chunk))
+            
+        return chunks
+        
+    async def get_supported_languages(self) -> List[str]:
+        """Get list of supported languages with caching."""
+        if self.language_cache:
+            return list(self.language_cache.keys())
+            
+        try:
+            translator = GoogleTranslator(source='auto', target='en')
+            languages = translator.get_supported_languages()
+            self.language_cache = {lang: True for lang in languages}
+            return languages
+        except Exception as e:
+            logger.error(f"Error getting supported languages: {e}")
+            return ['english']  # Fallback to English only
+            
+    async def detect_language(self, text: str) -> Tuple[str, float]:
+        """Detect language of text with confidence score."""
+        try:
+            translator = GoogleTranslator(source='auto', target='en')
+            detected = translator.detect(text)
+            return detected.lang, detected.confidence
+        except Exception as e:
+            logger.error(f"Language detection error: {e}")
+            return 'english', 0.0
+            
+    async def close(self):
+        """Clean up resources."""
+        # Nothing to clean up for now, but included for future-proofing
+        pass
+
+class QuantAIHospitalAgent:
+    """Strictly domain-specific AI agent for QuantAI Hospital Assistant (Auckland, New Zealand).
+    All responses and context are based on QuantAI Hospital's data and operations in Auckland.
+    """
     
     def __init__(self):
-        """Initialize the QuantAI Agent with advanced configurations and security measures."""
-        # Load environment variables securely
+        """Initialize the QuantAI Hospital Agent with optimized components."""
+        # Load environment variables
         load_dotenv()
         self._validate_environment()
         
@@ -248,49 +443,62 @@ class QuantAIAgent:
         self.language_manager = LanguageManager()
         self.user_language = None
         
-        # Initialize advanced caching system
+        # Initialize optimized caching system
         self._initialize_caches()
         
-        # Initialize NLP components with error handling
+        # Initialize NLP components
         self._initialize_nlp_components()
         
         # Load and prepare hospital data
+        print(f"{Fore.CYAN}Initializing QuantAI Hospital systems...{Style.RESET_ALL}")
         self.load_hospital_data()
         
         # Initialize API configuration
         self._initialize_api_config()
         
-        # Prepare vectorized data for similarity matching
+        # Prepare vectorized data for fast matching
+        print(f"{Fore.CYAN}Building knowledge vectors...{Style.RESET_ALL}")
         self._prepare_vectorized_data()
         
-        logger.info("QuantAI Agent initialized successfully")
+        # Precompute common queries for faster responses
+        self._precompute_common_contexts()
+        
+        # Initialize conversation context
+        self.conversation_context = ConversationContext()
+        
+        # Initialize enhanced translation manager
+        self.enhanced_translator = EnhancedTranslator()
+        
+        logger.info("QuantAI Hospital Agent initialized successfully")
+        print(f"{Fore.GREEN}✓ QuantAI Hospital Assistant ready{Style.RESET_ALL}")
 
     def _validate_environment(self):
-        """Validate all required environment variables and API keys."""
+        """Validate required environment variables."""
         required_vars = ['OPENROUTER_API_KEY']
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         
         if missing_vars:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+            raise ValueError(f"Missing required API keys: {', '.join(missing_vars)}")
             
         self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
 
     def _initialize_api_config(self):
-        """Initialize API configuration with enhanced security and monitoring."""
+        """Initialize API configuration for QuantAI Hospital Assistant (Auckland)."""
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.openrouter_model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-8b-instruct:free")
         self.headers = {
             "Authorization": f"Bearer {self.openrouter_api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://quantai-hospital.com",
-            "X-Title": "QuantAI Hospital Assistant",
+            "HTTP-Referer": "https://quantai.co.nz",
+            "X-Title": "QuantAI Hospital Assistant (Auckland)",
         }
 
     def _initialize_caches(self):
-        """Initialize sophisticated caching system for improved performance."""
-        self.response_cache = TTLCache(maxsize=100, ttl=3600)
-        self.context_cache = TTLCache(maxsize=50, ttl=1800)
-        self.translation_cache = TTLCache(maxsize=200, ttl=7200)
-        self.similarity_cache = TTLCache(maxsize=50, ttl=3600)
+        """Initialize caching system for optimal performance."""
+        self.response_cache = TTLCache(maxsize=200, ttl=3600)  # 1 hour for responses
+        self.context_cache = TTLCache(maxsize=100, ttl=1800)   # 30 minutes for context
+        self.translation_cache = TTLCache(maxsize=300, ttl=7200)  # 2 hours for translations
+        self.similarity_cache = TTLCache(maxsize=100, ttl=3600)   # 1 hour for similarity
 
     def _initialize_nlp_components(self):
         """Initialize NLP components with fallback options."""
@@ -321,196 +529,263 @@ class QuantAIAgent:
                 self.dataset_vectors[name] = self.vectorizer.fit_transform(text_data)
 
     def load_hospital_data(self):
-        """Load and prepare hospital data from CSV files with advanced preprocessing."""
+        """Load all CSV files from the data directory."""
         try:
             data_dir = os.path.join(os.path.dirname(__file__), 'data')
             
             self.hospital_data = {}
             self.data_metadata = {}
             
+            print(f"{Fore.CYAN}Loading data files...{Style.RESET_ALL}")
             for file in os.listdir(data_dir):
                 if file.endswith('.csv'):
                     file_path = os.path.join(data_dir, file)
+                    print(f"Reading {file}...")
                     df = pd.read_csv(file_path)
                     
-                    # Store the original data
-                    dataset_name = file.replace('.csv', '')
+                    # Store the data
+                    dataset_name = file.replace('.csv', '').replace('quantai_hospital_', '')
                     self.hospital_data[dataset_name] = df
                     
-                    # Generate and store metadata
+                    # Store basic metadata
                     self.data_metadata[dataset_name] = {
                         'columns': list(df.columns),
-                        'numeric_columns': df.select_dtypes(include=[np.number]).columns.tolist(),
-                        'categorical_columns': df.select_dtypes(include=['object']).columns.tolist(),
-                        'row_count': len(df),
-                        'summary_stats': df.describe().to_dict() if not df.empty else {},
-                        'common_values': {col: df[col].value_counts().head(5).to_dict() 
-                                        for col in df.select_dtypes(include=['object']).columns}
+                        'row_count': len(df)
                     }
             
-            print(f"{Fore.GREEN}✓ Successfully loaded hospital data{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✓ Successfully loaded {len(self.hospital_data)} data files{Style.RESET_ALL}")
         except Exception as e:
-            print(f"{Fore.RED}Error loading hospital data: {e}{Style.RESET_ALL}")
-            self.hospital_data = {}
-            self.data_metadata = {}
+            print(f"{Fore.RED}Error loading data: {e}{Style.RESET_ALL}")
+            raise
 
-    @cached(cache=TTLCache(maxsize=100, ttl=3600))
-    def generate_response(self, user_query: str) -> str:
-        """Generate enhanced, context-aware responses using QWEN AI."""
+    def _build_rag_context(self, query: str) -> str:
+        """Build context from loaded data files with hospital-specific information."""
         try:
-            # Prepare rich context from hospital data
-            context = self._prepare_context(user_query)
+            context_parts = []
             
-            # Construct sophisticated prompt for healthcare context
-            messages = [
-                {
-                    "role": "system",
-                    "content": """You are the AI assistant for QuantAI Hospital, a leading healthcare facility. Your responses must be:
-                    1. Professional and medically accurate
-                    2. Empathetic and patient-centered
-                    3. Clear and authoritative
-                    4. Strictly based on QuantAI Hospital's actual services and data
-                    5. Compliant with healthcare communication standards
-                    
-                    Never provide medical advice, only information about hospital services and general healthcare guidance.
-                    Always maintain patient confidentiality and privacy standards."""
-                },
-                {
-                    "role": "system",
-                    "content": f"Context for this interaction: {context}"
-                },
-                {
-                    "role": "user",
-                    "content": user_query
-                }
-            ]
+            # Add QuantAI Hospital basic information
+            context_parts.extend([
+                "QuantAI Hospital Information:",
+                "- Location: Auckland, New Zealand",
+                "- Type: Full-service medical facility",
+                "- Emergency Services: Available 24/7",
+                "- Main Contact: +64 9 123 4567"
+            ])
             
-            # Prepare optimized API request
-            payload = {
-                "model": "qwen/qwen-2.5-7b-instruct:free",
-                "messages": messages,
-                "temperature": 0.7,
-                "max_tokens": 1000,
-                "top_p": 0.9,
-                "frequency_penalty": 0.3,
-                "presence_penalty": 0.3,
-                "stream": False
-            }
+            # Add data summary
+            context_parts.append("\nAvailable Hospital Records:")
+            for name, metadata in self.data_metadata.items():
+                context_parts.append(f"\n{name.replace('_', ' ').title()}:")
+                context_parts.append(f"- {metadata['row_count']} records")
+                context_parts.append(f"- Information includes: {', '.join(metadata['columns'])}")
             
-            # Make API request with comprehensive error handling
+            # Add relevant sample data
+            context_parts.append("\nRelevant Records:")
+            for name, df in self.hospital_data.items():
+                if any(term in query.lower() for term in name.split('_')):
+                    context_parts.append(f"\n{name.replace('_', ' ').title()}:")
+                    sample = df.head(3).to_dict('records')
+                    for record in sample:
+                        record_str = ", ".join([f"{k}: {v}" for k, v in record.items() if pd.notna(v)])
+                        context_parts.append(record_str)
+            
+            return "\n".join(context_parts)
+        except Exception as e:
+            logger.error(f"Error building context: {e}")
+            return "Basic QuantAI Hospital Information Available"
+
+    async def generate_response(self, user_query: str) -> str:
+        """Generate response using OpenRouter API with loaded data context and follow-up awareness."""
+        try:
+            # Resolve pronouns/entities for follow-up
+            resolved_query = self.conversation_context.resolve_pronouns(user_query)
+            # Extract entities for context
+            entities = self.conversation_context.extract_entities(resolved_query)
+            # Build context from data and conversation
+            context = self._build_rag_context(resolved_query)
+            conversation_context = self.conversation_context.get_relevant_context(resolved_query)
+            if conversation_context:
+                context = f"{context}\n\nConversation Context:\n{conversation_context}"
+            # Generate response using RAG system
+            response = await rag_layer.rag_system.process_query(resolved_query, conversation_context)
+            # Store in conversation history
+            self.conversation_context.add_interaction(user_query, response, entities=entities)
+            # Translate if needed
+            if self.user_language and self.user_language != 'english':
+                response = await self.enhanced_translator.translate_text(response, self.user_language)
+            # Add a gentle prompt for follow-up
+            print(f"\n{Fore.CYAN}Is there anything else you'd like to know about QuantAI Hospital?{Style.RESET_ALL}")
+            return response
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return "Sorry, I couldn't process your request. Could you please rephrase?"
+
+    async def run_cli(self):
+        """Run the conversational command-line interface."""
+        print(f"\n{Back.BLUE}{Fore.WHITE} QUANTAI HOSPITAL ASSISTANT {Style.RESET_ALL}")
+        print("\nKia ora! I'm your QuantAI Hospital assistant. I'm here to help you with appointments,")
+        print("patient information, services, and any other questions about our hospital.")
+        
+        # Select language
+        await self.select_language()
+        
+        # Main interaction loop
+        while True:
+            print("\n" + "="*50)
+            user_input = input(f"\n{Fore.CYAN}How can I assist you today? {Style.RESET_ALL}")
+            
+            if user_input.lower() in ['quit', 'exit', 'q', 'bye']:
+                print(f"\n{Fore.CYAN}Thank you for using QuantAI Hospital's assistant. Take care and have a great day! {Style.RESET_ALL}")
+                break
+            
+            if user_input.lower() in ['language', 'change language']:
+                await self.change_language()
+                continue
+                
+            if not user_input.strip():
+                continue
+            
+            print(f"\n{Fore.CYAN}Let me help you with that...{Style.RESET_ALL}")
+            
             try:
-                response = requests.post(
-                    self.api_url,
-                    headers=self.headers,
-                    json=payload,
-                    timeout=30
-                )
+                # Create a subtle progress indicator
+                with tqdm(total=100, desc="Processing", ncols=75, bar_format='{desc}: {percentage:3.0f}%|{bar}|') as pbar:
+                    response = await self.generate_response(user_input)
+                    pbar.update(100)
+        
+                # Print response with formatting
+                print(f"\n{Fore.GREEN}QuantAI Hospital Assistant:{Style.RESET_ALL}")
+                print(f"{response}")
                 
-                if response.status_code != 200:
-                    logger.error(f"API Error: {response.status_code} - {response.text}")
-                    return self.translate_text(
-                        "I apologize, but I'm currently unable to access the hospital's information system. "
-                        "Please try again later or contact our help desk for immediate assistance."
-                    )
+                # Add a gentle prompt for follow-up
+                print(f"\n{Fore.CYAN}Is there anything else you'd like to know about QuantAI Hospital?{Style.RESET_ALL}")
                 
-                ai_response = response.json()['choices'][0]['message']['content']
-                
-                # Post-process response for quality assurance
-                processed_response = self._post_process_response(ai_response)
-                return self.translate_text(processed_response)
-                
-            except requests.exceptions.RequestException as e:
-                logger.error(f"API Request Error: {str(e)}")
-                return self.translate_text(
-                    "I apologize, but I'm experiencing technical difficulties. "
-                    "Please try again or contact our support team for assistance."
-                )
-                
-        except Exception as e:
-            logger.error(f"Unexpected Error: {str(e)}")
-            return self.translate_text(
-                "I apologize for the inconvenience, but I'm unable to process your request at this moment. "
-                "Please try again later."
-            )
+            except Exception as e:
+                logger.error(f"Error: {e}")
+                print(f"\n{Fore.RED}I apologize, but I'm having trouble accessing that information right now.{Style.RESET_ALL}")
+                print("Could you please try asking your question again, or rephrase it?")
 
-    def _post_process_response(self, response: str) -> str:
-        """Post-process AI responses for quality and relevance."""
-        # Ensure response starts professionally
-        if not any(response.lower().startswith(starter) for starter in [
-            "i apologize", "thank you", "hello", "hi", "greetings",
-            "welcome", "certainly", "absolutely", "i understand", "i'd be happy"
-        ]):
-            response = "I'd be happy to help you. " + response
+    def _determine_query_type(self, query: str) -> str:
+        """Determine the type of query for QuantAI Hospital context."""
+        query_lower = query.lower()
+                
+        # Define QuantAI Hospital-specific query patterns
+        patterns = {
+            'patient': r'patient|illness|disease|treatment|health|admission|discharge|nhi',
+            'staff': r'doctor|nurse|staff|specialist|consultant|surgeon|physician|pharmacist',
+            'operations': r'operation|procedure|treatment|surgery|recovery|theatre|ward',
+            'equipment': r'equipment|device|instrument|machine|scanner|monitor|ventilator',
+            'services': r'service|clinic|outpatient|inpatient|specialist|referral|consultation',
+            'emergency': r'emergency|urgent|immediate|critical|accident|trauma|triage',
+            'location': r'location|address|directions|parking|auckland|transport|bus|train',
+            'contact': r'contact|phone|email|fax|hours|opening|closing|waitangi|holiday',
+            'departments': r'department|ward|icu|unit|clinic|radiology|cardiology|pediatrics',
+            'appointments': r'appointment|booking|schedule|consultation|visit|checkup|follow-up',
+            'facilities': r'facility|building|room|theatre|ward|clinic|centre|center'
+        }
         
-        # Add professional closing if needed
-        if not any(response.lower().endswith(closer) for closer in [
-            "assistance.", "help.", "questions.", "service.", "team."
-        ]):
-            response += " Please let me know if you need any additional information."
-        
-        return response
+        # Check patterns
+        for query_type, pattern in patterns.items():
+            if re.search(pattern, query_lower):
+                return query_type
+                
+        return 'general'
 
-    def translate_text(self, text: str) -> str:
-        """Enhanced translation with context preservation and caching."""
-        if not self.user_language or self.user_language == 'english':
-            return text
+    def _precompute_common_contexts(self):
+        """Precompute contexts for common query types to reduce latency."""
+        self.precomputed_contexts = {}
+        common_queries = [
+            "patient information",
+            "health statistics",
+            "recent treatments",
+            "equipment status",
+            "emergency response",
+            "community engagement",
+            "cyberhealth operations"
+        ]
         
-        # Check cache first
-        cache_key = f"{text[:50]}_{self.user_language}"
-        if cache_key in self.translation_cache:
-            return self.translation_cache[cache_key]
+        print(f"{Fore.CYAN}Precomputing knowledge contexts...{Style.RESET_ALL}")
+        for query in common_queries:
+            query_type = self._determine_query_type(query)
+            context = []
+            
+            # Add metadata for relevant datasets
+            for dataset_name, metadata in self.data_metadata.items():
+                if self._is_dataset_relevant(dataset_name, query_type):
+                    context.append(f"\n{dataset_name}:")
+                    context.append(f"- Available fields: {', '.join(metadata['columns'])}")
+                    context.append(f"- Total records: {metadata['row_count']}")
+            
+            self.precomputed_contexts[query_type] = "\n".join(context)
+            
+    def _is_dataset_relevant(self, dataset_name: str, query_type: str) -> bool:
+        """Determine if a dataset is relevant to a query type."""
+        relevance_map = {
+            'patient': ['health_records', 'treatment_records', 'emergency_response'],
+            'staff': ['doctors', 'nurses', 'medical_staff', 'healthcare_certifications'],
+            'operations': ['surgery_logs', 'treatment_records', 'recovery_records'],
+            'equipment': ['equipment_inventory'],
+            'intelligence': ['research_reports', 'healthcare_data', 'cyberhealth_operations'],
+            'emergency': ['emergency_response'],
+            'community': ['community_engagement', 'indigenous_engagement'],
+            'training': ['healthcare_certifications'],
+            'cyber': ['cyberhealth_operations'],
+            'maritime': ['maritime_operations'],
+            'counter_terrorism': ['counter_terrorism_operations'],
+            'indigenous': ['indigenous_engagement']
+        }
         
-        try:
-            # Split text into sentences for better translation
-            sentences = sent_tokenize(text)
-            translated_sentences = []
-            
-            translator = GoogleTranslator(source='english', target=self.user_language)
-            
-            for sentence in sentences:
-                try:
-                    translated = translator.translate(sentence)
-                    if translated:
-                        translated_sentences.append(translated)
-                    else:
-                        translated_sentences.append(sentence)
-                except Exception as e:
-                    logger.warning(f"Error translating sentence: {e}")
-                    translated_sentences.append(sentence)
-            
-            final_translation = ' '.join(translated_sentences)
-            
-            # Only cache successful translations
-            if final_translation and final_translation != text:
-                self.translation_cache[cache_key] = final_translation
-            
-            return final_translation
-            
-        except Exception as e:
-            logger.error(f"Translation error: {e}")
-            return text
+        relevant_datasets = relevance_map.get(query_type, [])
+        return dataset_name in relevant_datasets
 
-    def select_language(self):
-        """Enhanced language selection with user-friendly interface."""
-        print(f"\n{Back.BLUE}{Fore.WHITE} Welcome to Language Selection {Style.RESET_ALL}")
+    async def select_language(self):
+        """Enhanced language selection with async support."""
+        print(f"\n{Back.BLUE}{Fore.WHITE} Language Selection {Style.RESET_ALL}")
         print("\nPlease select your preferred language for communication.")
-        print("You can:")
-        print("1. Type part of the language name to search")
-        print("2. Use common language codes (e.g., 'en', 'es', 'fr')")
-        print("3. Type the language name in your own language")
         
-        self.user_language = self.language_manager.display_languages()
-        print(f"\n{Fore.GREEN}✓ Language set to: {self.user_language}{Style.RESET_ALL}")
+        # Get supported languages
+        languages = await self.enhanced_translator.get_supported_languages()
         
-        # Save preference if user ID is available
-        if hasattr(self, 'user_id'):
-            self.language_manager.save_language_preference(self.user_id, self.user_language)
-
-    def change_language(self):
-        """Allow users to change their language preference during conversation."""
-        print(f"\n{Fore.CYAN}Changing language preference{Style.RESET_ALL}")
-        self.select_language()
-        return self.translate_text("Language changed successfully. How may I assist you?")
+        # Display languages in a user-friendly format
+        print("\nAvailable languages:")
+        for i, lang in enumerate(languages, 1):
+            print(f"{i}. {lang.title()}")
+            
+        while True:
+            try:
+                choice = input(f"\n{Fore.YELLOW}Enter language number or name: {Style.RESET_ALL}")
+                
+                # Handle numeric choice
+                if choice.isdigit():
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(languages):
+                        self.user_language = languages[idx]
+                        break
+                else:
+                    # Handle text input
+                    choice = choice.lower()
+                    matches = [lang for lang in languages if lang.lower().startswith(choice)]
+                    if len(matches) == 1:
+                        self.user_language = matches[0]
+                        break
+                    elif len(matches) > 1:
+                        print(f"\nMultiple matches found: {', '.join(matches)}")
+                        print("Please be more specific.")
+                    else:
+                        print(f"\n{Fore.RED}Language not found. Please try again.{Style.RESET_ALL}")
+            except ValueError:
+                print(f"\n{Fore.RED}Invalid input. Please try again.{Style.RESET_ALL}")
+                
+        print(f"\n{Fore.GREEN}✓ Language set to: {self.user_language.title()}{Style.RESET_ALL}")
+        
+    async def change_language(self):
+        """Change language preference with async support."""
+        await self.select_language()
+        response = "Language changed successfully. How may I assist you?"
+        if self.user_language != 'english':
+            response = await self.enhanced_translator.translate_text(response, self.user_language)
+        print(f"\n{Fore.GREEN}Response:{Style.RESET_ALL}")
+        print(response)
 
     def _extract_query_keywords(self, query: str) -> List[str]:
         """Extract important keywords from the query with error handling."""
@@ -553,114 +828,118 @@ class QuantAIAgent:
         relevant_indices = similarities[0] > threshold
         return df[relevant_indices]
 
-    def _prepare_context(self, query: str) -> str:
-        """Prepare relevant context from hospital data based on the user query with advanced filtering."""
-        context = []
-        keywords = self._extract_query_keywords(query)
-        
-        # Add metadata context
-        context.append("Hospital Data Overview:")
-        for dataset_name, metadata in self.data_metadata.items():
-            context.append(f"\n{dataset_name}:")
-            context.append(f"- Available fields: {', '.join(metadata['columns'])}")
-            context.append(f"- Total records: {metadata['row_count']}")
-        
-        # Find and add relevant data from each dataset
-        for dataset_name, df in self.hospital_data.items():
-            relevant_data = self._find_relevant_data(query, df)
-            
-            if not relevant_data.empty:
-                context.append(f"\nRelevant {dataset_name} data:")
+    async def _prepare_context(self, query: str) -> str:
+        """Prepare relevant context from hospital data based on the user query asynchronously."""
+        try:
+            # Check cache first for exact query
+            cache_key = query[:50]
+            if cache_key in self.context_cache:
+                return self.context_cache[cache_key]
                 
-                # Add summary statistics for numeric columns
-                numeric_cols = relevant_data.select_dtypes(include=[np.number]).columns
-                if not numeric_cols.empty:
-                    stats = relevant_data[numeric_cols].describe()
-                    context.append("Summary statistics:")
-                    context.append(stats.to_string())
+            # Get query type for context optimization
+            query_type = self._determine_query_type(query)
+            
+            # Use precomputed context if available for this query type
+            if query_type in self.precomputed_contexts:
+                base_context = self.precomputed_contexts[query_type]
+            else:
+                # Generate base context from metadata
+                context_parts = ["Hospital Data Overview:"]
+                for dataset_name, metadata in self.data_metadata.items():
+                    context_parts.append(f"\n{dataset_name}:")
+                    context_parts.append(f"- Available fields: {', '.join(metadata['columns'])}")
+                    context_parts.append(f"- Total records: {metadata['row_count']}")
+                base_context = "\n".join(context_parts)
+            
+            # Extract keywords for targeted data retrieval
+            keywords = self._extract_query_keywords(query)
+            
+            # Find and add relevant data from each dataset (limited to most relevant datasets)
+            enhanced_context_parts = [base_context]
+            relevant_datasets = []
+            
+            # Determine which datasets are most relevant to this query
+            for dataset_name in self.hospital_data.keys():
+                if self._is_dataset_relevant(dataset_name, query_type):
+                    relevant_datasets.append(dataset_name)
+            
+            # If no specific datasets are identified, use a subset of all datasets
+            if not relevant_datasets:
+                relevant_datasets = list(self.hospital_data.keys())[:3]
                 
-                # Add sample records
-                context.append("\nSample records:")
-                sample = relevant_data.head(3).to_dict(orient='records')
-                context.append(json.dumps(sample, indent=2))
-                
-                # Add keyword matches
-                for keyword in keywords:
-                    matches = df.astype(str).apply(lambda x: x.str.contains(keyword, case=False)).any()
-                    if matches.any():
-                        context.append(f"\nColumns containing '{keyword}': {', '.join(matches[matches].index)}")
-        
-        return "\n".join(context)
-
-    def run_cli(self):
-        """Run the enhanced command-line interface with improved user interaction."""
-        print(f"\n{Back.BLUE}{Fore.WHITE} Welcome to QuantAI Hospital AI Assistant {Style.RESET_ALL}")
-        print("\nI'm here to help you with information about our hospital's services, facilities, and general healthcare guidance.")
-        
-        # Select language
-        self.select_language()
-        
-        # Main interaction loop
-        while True:
-            print("\n" + "="*50)
-            print(f"\n{Fore.CYAN}You can:{Style.RESET_ALL}")
-            print("1. Ask any question about QuantAI Hospital")
-            print("2. Type 'language' to change your language")
-            print("3. Type 'quit' to exit")
-            
-            user_input = input(f"\n{Fore.YELLOW}How can I help you today?: {Style.RESET_ALL}")
-            
-            if user_input.lower() in ['quit', 'exit', 'q']:
-                print(f"\n{Fore.CYAN}Thank you for using QuantAI Hospital AI Assistant. Take care!{Style.RESET_ALL}")
-                break
-            
-            if user_input.lower() == 'language':
-                response = self.change_language()
-                print(f"\n{Fore.GREEN}Response:{Style.RESET_ALL}")
-                print(response)
-                continue
-            
-            print(f"\n{Fore.CYAN}Generating response...{Style.RESET_ALL}")
-            with tqdm(total=100, desc="Processing", ncols=75) as pbar:
+            # Process only the most relevant datasets for faster response
+            for dataset_name in relevant_datasets:
                 try:
-                    response = self.generate_response(user_input)
-                    pbar.update(100)
-                    print(f"\n{Fore.GREEN}Response:{Style.RESET_ALL}")
-                    print(response)
+                    df = self.hospital_data[dataset_name]
+                    relevant_data = self._find_relevant_data(query, df)
+                    
+                    if not relevant_data.empty:
+                        enhanced_context_parts.append(f"\nRelevant {dataset_name} data:")
+                        
+                        # Add sample records (limited for speed)
+                        enhanced_context_parts.append("\nSample records:")
+                        sample = relevant_data.head(2).to_dict(orient='records')
+                        enhanced_context_parts.append(json.dumps(sample, indent=2))
+                        
+                        # Add keyword matches (limited for speed)
+                        for keyword in keywords[:3]:
+                            matches = df.astype(str).apply(lambda x: x.str.contains(keyword, case=False)).any()
+                            if matches.any():
+                                columns = list(matches[matches].index)[:5]  # Limit to 5 columns
+                                enhanced_context_parts.append(f"\nColumns containing '{keyword}': {', '.join(columns)}")
                 except Exception as e:
-                    pbar.update(100)
-                    logger.error(f"Error generating response: {e}")
-                    print(f"\n{Fore.RED}I apologize, but I encountered an error while processing your request.{Style.RESET_ALL}")
-                    print("Please try again or contact our support team for assistance.")
+                    logger.error(f"Error processing dataset {dataset_name}: {e}")
+                    continue
+            
+            # Add conversation context
+            conversation_context = self.conversation_context.get_relevant_context(query)
+            if conversation_context:
+                enhanced_context_parts.append("\nConversation Context:")
+                enhanced_context_parts.append(conversation_context)
+            
+            final_context = "\n".join(enhanced_context_parts)
+            
+            # Cache the result
+            self.context_cache[cache_key] = final_context
+            return final_context
+            
+        except Exception as e:
+            logger.error(f"Error preparing context: {e}")
+            return "Error preparing context. Using general hospital information."
 
-def main():
-    """Enhanced main entry point with better error handling and user guidance."""
+async def main():
+    """Main entry point for QuantAI Hospital Auckland Assistant."""
     try:
-        print(f"\n{Back.BLUE}{Fore.WHITE} Initializing QuantAI Hospital AI Assistant {Style.RESET_ALL}")
-        print("\nPlease wait while I set up the necessary components...")
+        print(f"\n{Back.BLUE}{Fore.WHITE} Initializing QuantAI Hospital Auckland Assistant {Style.RESET_ALL}")
+        print("\nPreparing systems...")
         
         with tqdm(total=100, desc="Loading", ncols=75) as pbar:
-            agent = QuantAIAgent()
+            agent = QuantAIHospitalAgent()
             pbar.update(100)
         
-        agent.run_cli()
+        await agent.run_cli()
         
     except ValueError as e:
         print(f"\n{Back.RED}{Fore.WHITE} Configuration Error {Style.RESET_ALL}")
         print(f"\n{Fore.RED}Error: {str(e)}{Style.RESET_ALL}")
         print("\nPlease ensure you have:")
-        print("1. Created a .env file with your OPENROUTER_API_KEY")
-        print("2. Installed all required dependencies (pip install -r requirements.txt)")
-        print("3. Have the necessary data files in the /data directory")
+        print("1. Valid API key in .env file")
+        print("2. Required packages installed")
+        print("3. Access to QuantAI Hospital data files")
         
     except Exception as e:
-        print(f"\n{Back.RED}{Fore.WHITE} Unexpected Error {Style.RESET_ALL}")
+        print(f"\n{Back.RED}{Fore.WHITE} System Error {Style.RESET_ALL}")
         print(f"\n{Fore.RED}An unexpected error occurred: {str(e)}{Style.RESET_ALL}")
-        logger.error(f"Unexpected error in main: {e}", exc_info=True)
+        logger.error(f"System error: {e}", exc_info=True)
         print("\nPlease try:")
         print("1. Checking your internet connection")
-        print("2. Verifying all dependencies are correctly installed")
-        print("3. Contacting support if the issue persists")
+        print("2. Verifying system requirements")
+        print("3. Contacting QuantAI Hospital IT support if needed")
+    finally:
+        if 'agent' in locals():
+            if hasattr(agent, 'enhanced_translator'):
+                await agent.enhanced_translator.close()
+            print("\nQuantAI Hospital Assistant shutdown complete.")
 
 if __name__ == "__main__":
-    main() 
+    asyncio.run(main()) 

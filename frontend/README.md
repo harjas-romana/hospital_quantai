@@ -1,54 +1,167 @@
-# React + TypeScript + Vite
+## 🚀 Features
+### Core Functionality
+- **Text Mode**: Type questions and receive responses in a chat-like interface
+- **Voice Mode**: Interact via voice input/output with visual feedback during recording
+- **Real-time Chat**: Smooth message animations and auto-scroll functionality
+- **Loading States**: Animated loading indicators and typing indicators
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### Advanced UI/UX
+- **Smooth Animations**: Powered by Framer Motion for fluid transitions
+- **Interactive Charts**: Data visualization with Recharts library
+- **Toast Notifications**: User feedback with React Hot Toast
+- **Settings Modal**: Comprehensive settings with accessibility options
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-Currently, two official plugins are available:
+### Accessibility & Performance
+- **ARIA Labels**: Full accessibility support for screen readers
+- **Keyboard Navigation**: Complete keyboard accessibility
+- **Focus Management**: Proper focus handling for all interactive elements
+- **Performance Optimized**: Code-splitting and lazy loading for heavy components
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Data Visualization
+- **Response Time Charts**: Area charts showing AI response performance
+- **Query Distribution**: Pie charts displaying query type breakdowns
+- **Usage Analytics**: Bar charts for daily query volumes
+- **Key Metrics**: Real-time performance indicators
 
-## Expanding the ESLint configuration
+## 🛠 Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **React.js** with TypeScript
+- **Vite** for fast development and building
+- **Tailwind CSS v4** for styling
+- **Framer Motion** for animations
+- **React Hot Toast** for notifications
+- **Recharts** for data visualization
+- **Headless UI** for accessible components
+- **Heroicons** for animated SVG icons
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+## 📦 Installation
+
+### Prerequisites
+- Node.js 16+ and npm/yarn
+- Modern web browser with ES6+ support
+
+### Setup Instructions
+
+1. **Clone and Navigate**
+   ```bash
+   cd frontend
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for Production**
+   ```bash
+   npm run build
+   ```
+
+## 🎨 Key Components
+
+### Animation System
+- **Framer Motion Integration**: Smooth page transitions and component animations
+- **Custom Animation Variants**: Reusable animation patterns
+- **Performance Optimized**: GPU-accelerated animations for smooth 60fps
+
+### Data Visualization
+- **Interactive Charts**: Hover effects and tooltips
+- **Responsive Design**: Charts adapt to container size
+- **Theme Integration**: Consistent with application color scheme
+
+### Accessibility Features
+- **Screen Reader Support**: Comprehensive ARIA labels
+- **Keyboard Navigation**: Full keyboard accessibility
+- **Focus Indicators**: Clear visual focus states
+- **Reduced Motion**: Respects user motion preferences
+
+## 🔧 Configuration
+
+### Environment Variables
+Create a `.env` file in the frontend directory:
+```env
+VITE_APP_TITLE=Australian Police Department AI Assistant
+VITE_APP_API_URL=http://localhost:8000/api
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Tailwind Configuration
+Custom animations and colors are defined in `tailwind.config.js`:
+- Custom police blue and gold colors
+- Animation keyframes for fade-in, slide-in, and pulse effects
+- Responsive breakpoints
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 📱 Usage
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+### Text Mode
+1. Type your question in the input field
+2. Press Enter or click Send
+3. View animated response with typing indicator
+4. Messages auto-scroll to bottom
+
+### Voice Mode
+1. Click the microphone button to start recording
+2. Speak your question clearly
+3. Click again to stop recording
+4. View processing animation and response
+
+### Analytics View
+1. Click the Analytics button in the header
+2. View interactive charts and metrics
+3. Hover over chart elements for detailed information
+
+### Settings
+1. Click the Settings button in the header
+2. Configure theme, notifications, and accessibility options
+3. Toggle switches with smooth animations
+
+## 🎯 Performance Optimizations
+
+- **Code Splitting**: Lazy loading for heavy components
+- **Animation Performance**: GPU-accelerated transforms
+- **Bundle Optimization**: Tree shaking and minification
+- **Image Optimization**: Optimized logo and assets
+
+## 🔒 Security Considerations
+
+- **Input Validation**: Client-side validation for all inputs
+- **XSS Prevention**: Sanitized user inputs
+- **HTTPS Ready**: Secure communication protocols
+- **Content Security Policy**: CSP headers for production
+
+## 📊 Analytics & Monitoring
+
+The application includes built-in analytics features:
+- Response time tracking
+- Query type distribution
+- Usage patterns
+- Performance metrics
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with proper TypeScript types
+4. Add tests for new functionality
+5. Submit a pull request
+
+## 📄 License
+
+This project is a Proof of Concept by QuantAI, NZ. Not intended for production use.
+
+## 🆘 Support
+
+For technical support or questions:
+- Check the console for error messages
+- Verify all dependencies are installed
+- Ensure Node.js version compatibility
+- Review browser console for any issues
+
+---
+
+**Built with ❤️ by QuantAI, NZ** 

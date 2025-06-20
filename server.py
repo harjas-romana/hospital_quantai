@@ -6,18 +6,29 @@ from the QuantAI Hospital AI Assistant system.
 
 import os
 import logging
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Union
 from pathlib import Path
 import tempfile
 import uuid
 from datetime import datetime
-# import speech_recognition as sr
+import speech_recognition as sr
 import io
 import wave
 import time
 import hashlib
+import pyaudio
+import numpy as np
+from pydub import AudioSegment
+from pydub.playback import play as pydub_play
+import torch
+from TTS.api import TTS
+from TTS.utils.manage import ModelManager
+from TTS.utils.synthesizer import Synthesizer
+from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.models.xtts import XttsAudioConfig, XttsArgs
+from TTS.config.shared_configs import BaseDatasetConfig
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request, Form
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -29,8 +40,8 @@ from cachetools import TTLCache
 from contextlib import asynccontextmanager
 
 # Import our agent implementations
-from agent import QuantAIAgent
-# from voice_agent import VoiceAgent, TextToSpeech, SpeechToText
+from agent import QuantAIHospitalAgent
+from voice_agent_labs import VoiceAgent, TextToSpeech, SpeechToText
 
 # Configure logging
 logging.basicConfig(
@@ -46,21 +57,44 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+
+# Add required classes to safe globals for PyTorch 2.6+
+import torch.serialization
+torch.serialization.add_safe_globals([
+    XttsConfig,
+    XttsAudioConfig,
+    BaseDatasetConfig,
+    XttsArgs
+])
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
-    logger.info("Starting QuantAI Hospital API Server")
+    logger.info("Starting Australian Police API Server")
     cleanup_old_files(TEMP_DIR)
+    try:
+        logger.info("Initializing Australian Police API Server...")
+        text_agent = QuantAIHospitalAgent()
+        voice_agent = VoiceAgent()
+        # Set default language without prompting
+        text_agent.user_language = "en"  # Default to English
+        voice_agent.current_language = "en"  # Default to English
+        logger.info("✓ Text agent initialized")
+        logger.info("✓ Voice agent initialized")
+        logger.info("✓ Application Startup Complete")
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        raise RuntimeError(f"Application initialization failed: {e}")
     yield
     # Shutdown
-    logger.info("Shutting down QuantAI Hospital API Server")
+    logger.info("Shutting down Australian Police API Server")
     cleanup_old_files(TEMP_DIR)
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="QuantAI Hospital API",
-    description="API server for QuantAI Hospital's text and voice processing capabilities",
+    title="Australian Police API",
+    description="API server for Australian Police's text and voice processing capabilities",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -75,8 +109,15 @@ app.add_middleware(
 )
 
 # Initialize our agents
-text_agent = QuantAIAgent()
-# voice_agent = VoiceAgent()
+logger.info("Initializing QuantAI Hospital API Server...")
+text_agent = QuantAIHospitalAgent()
+voice_agent = VoiceAgent()
+# Set default language without prompting
+text_agent.user_language = "en"  # Default to English
+voice_agent.current_language = "en"  # Default to English
+logger.info("✓ Text agent initialized")
+logger.info("✓ Voice agent initialized")
+logger.info("✓ Application Startup Complete")
 
 # Create temp directory for audio files
 TEMP_DIR = Path("temp_audio")
@@ -88,7 +129,7 @@ batch_translation_cache = TTLCache(maxsize=500, ttl=3600)  # Cache for 1 hour
 class TextQuery(BaseModel):
     """Model for text query requests."""
     text: str
-    language: Optional[str] = "english"
+    language: str = "english"  # Required with default
     auto_detect_language: Optional[bool] = Field(default=False, description="Automatically detect the input language")
     translate_input: Optional[bool] = Field(default=False, description="Translate the input to English before processing")
 
@@ -107,7 +148,7 @@ class BatchTranslationRequest(BaseModel):
     """Model for batch translation requests."""
     texts: list[str]
     target_language: str
-    source_language: Optional[str] = "english"
+    source_language: str = "english"  # Changed from Optional to required with default
 
 class BatchTranslationResponse(BaseModel):
     """Model for batch translation responses."""
@@ -125,16 +166,24 @@ class TextResponse(BaseModel):
     detected_language: Optional[str] = None
     confidence: Optional[float] = None
 
-# class VoiceResponse(BaseModel):
-#     """Model for voice query responses."""
-#     text: str
-#     audio_url: Optional[str] = None
-#     error: Optional[str] = None
+class VoiceResponse(BaseModel):
+    """Model for voice query responses."""
+    user_text: str
+    response_text: str
+    audio_url: Optional[str] = None
+    error: Optional[str] = None
 
-# class TextToSpeechRequest(BaseModel):
-#     """Model for text-to-speech requests."""
-#     text: str
-#     voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice ID by default
+class TextToSpeechRequest(BaseModel):
+    """Model for text-to-speech requests."""
+    text: str
+    language: Optional[str] = "english"
+
+class TextToSpeechResponse(BaseModel):
+    """Model for text-to-speech responses."""
+    success: bool
+    audio_url: str
+    text: str
+    error: Optional[str] = None
 
 def cleanup_old_files(directory: Path, max_age_hours: int = 1):
     """Clean up old temporary files."""
@@ -147,27 +196,156 @@ def cleanup_old_files(directory: Path, max_age_hours: int = 1):
             except Exception as e:
                 logger.error(f"Error cleaning up file {file}: {e}")
 
-def validate_wav_file(audio_data: bytes) -> bool:
-    """Validate if the audio data is a valid WAV file."""
+def validate_and_convert_audio(audio_data: bytes) -> Optional[bytes]:
+    """Try to open the audio file as WAV, or convert to WAV if needed."""
     try:
+        # Try to open as WAV
         with io.BytesIO(audio_data) as f:
-            # Check if it starts with RIFF header
-            if audio_data[:4] != b'RIFF':
-                logger.warning("Audio file does not start with RIFF header")
-                return False
-                
-            # Try to open with wave module
             with wave.open(f, 'rb') as wav:
-                # Get basic properties
                 channels = wav.getnchannels()
                 sample_width = wav.getsampwidth()
                 framerate = wav.getframerate()
-                
                 logger.info(f"WAV file validated: channels={channels}, sample_width={sample_width}, framerate={framerate}")
-                return True
+                return audio_data
     except Exception as e:
-        logger.error(f"Error validating WAV file: {e}")
-        return False
+        logger.warning(f"Audio file is not a valid WAV: {e}. Attempting conversion with pydub.")
+        try:
+            audio = AudioSegment.from_file(io.BytesIO(audio_data))
+            wav_io = io.BytesIO()
+            audio.export(wav_io, format='wav')
+            logger.info("Audio file converted to WAV using pydub.")
+            return wav_io.getvalue()
+        except Exception as e2:
+            logger.error(f"Audio file could not be processed: {e2}")
+            return None
+
+def get_xtts_language_code(language: str) -> str:
+    """Map language name or code to XTTS v2 code."""
+    language = (language or "english").strip().lower()
+    mapping = {
+        'english': 'en', 'en': 'en',
+        'spanish': 'es', 'es': 'es',
+        'french': 'fr', 'fr': 'fr',
+        'german': 'de', 'de': 'de',
+        'hindi': 'hi', 'hi': 'hi',
+        'chinese': 'zh-cn', 'zh': 'zh-cn', 'zh-cn': 'zh-cn',
+        'japanese': 'ja', 'ja': 'ja',
+        'italian': 'it', 'it': 'it',
+        'russian': 'ru', 'ru': 'ru',
+        'arabic': 'ar', 'ar': 'ar',
+        'portuguese': 'pt', 'pt': 'pt',
+        'korean': 'ko', 'ko': 'ko',
+        'polish': 'pl', 'pl': 'pl',
+        'turkish': 'tr', 'tr': 'tr',
+        'dutch': 'nl', 'nl': 'nl',
+        'czech': 'cs', 'cs': 'cs',
+        'hungarian': 'hu', 'hu': 'hu',
+    }
+    return mapping.get(language, 'en')
+
+def map_code_to_deep_translator_language(language_code: str) -> str:
+    """Map short language codes or names to DeepTranslator's expected language names."""
+    code_map = {
+        'en': 'english', 'english': 'english',
+        'es': 'spanish', 'spanish': 'spanish',
+        'fr': 'french', 'french': 'french',
+        'de': 'german', 'german': 'german',
+        'it': 'italian', 'italian': 'italian',
+        'pt': 'portuguese', 'portuguese': 'portuguese',
+        'zh': 'chinese', 'zh-cn': 'chinese', 'chinese': 'chinese',
+        'ja': 'japanese', 'japanese': 'japanese',
+        'ko': 'korean', 'korean': 'korean',
+        'ar': 'arabic', 'arabic': 'arabic',
+        'ru': 'russian', 'russian': 'russian',
+        'hi': 'hindi', 'hindi': 'hindi',
+        'pl': 'polish', 'polish': 'polish',
+        'tr': 'turkish', 'turkish': 'turkish',
+        'nl': 'dutch', 'dutch': 'dutch',
+        'cs': 'czech', 'czech': 'czech',
+        'hu': 'hungarian', 'hungarian': 'hungarian',
+    }
+    return code_map.get(language_code.lower().strip(), 'english')
+
+@app.get("/languages-text")
+async def get_text_languages():
+    """
+    Get list of available languages for text translation.
+    """
+    try:
+        # Map of language codes to display names
+        language_map = {
+            'en': 'English',
+            'es': 'Spanish',
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'zh': 'Chinese',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'ar': 'Arabic',
+            'ru': 'Russian',
+            'hi': 'Hindi',
+            'pl': 'Polish',
+            'tr': 'Turkish',
+            'nl': 'Dutch',
+            'cs': 'Czech',
+            'hu': 'Hungarian',
+        }
+        # Only include supported languages
+        supported = set(text_agent.language_manager.supported_languages)
+        # Try to match both code and name
+        languages = {code: name for code, name in language_map.items() if code in supported or name.lower() in supported}
+        return {
+            "success": True,
+            "languages": languages,
+            "count": len(languages)
+        }
+    except Exception as e:
+        logger.error(f"Error getting text languages: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving available text languages: {str(e)}"
+        )
+
+@app.get("/languages-voice")
+async def get_voice_languages():
+    """
+    Get list of available languages for voice synthesis using Coqui TTS XTTS v2.
+    """
+    try:
+        # Get voice synthesis languages from XTTS v2
+        voice_languages = {
+            'en': 'English',
+            'es': 'Spanish',
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'pl': 'Polish',
+            'tr': 'Turkish',
+            'ru': 'Russian',
+            'nl': 'Dutch',
+            'cs': 'Czech',
+            'ar': 'Arabic',
+            'zh': 'Chinese',
+            'hu': 'Hungarian',
+            'ko': 'Korean',
+            'ja': 'Japanese',
+            'hi': 'Hindi'
+        }
+        
+        return {
+            "success": True,
+            "languages": voice_languages,
+            "count": len(voice_languages)
+        }
+    except Exception as e:
+        logger.error(f"Error getting voice languages: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving available voice languages: {str(e)}"
+        )
 
 @app.post("/text-query", response_model=TextResponse)
 async def process_text_query(query: TextQuery):
@@ -207,7 +385,7 @@ async def process_text_query(query: TextQuery):
         if not is_valid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported language: {target_language}. Use /languages endpoint to see available languages."
+                detail=f"Unsupported language: {target_language}. Use /languages-text endpoint to see available languages."
             )
             
         # Set the validated language
@@ -215,13 +393,13 @@ async def process_text_query(query: TextQuery):
         logger.info(f"Language set to: {normalized_language}")
         
         # Generate response using potentially translated input text
-        response = text_agent.generate_response(input_text)
+        response = await text_agent.generate_response(input_text)
         
         # Translate response if not English
         if normalized_language.lower() != "english":
             logger.info(f"Translating response to {normalized_language}")
             try:
-                response = text_agent.translate_text(response)
+                response = await text_agent.enhanced_translator.translate_text(response, normalized_language)
                 if not response:
                     raise ValueError("Translation failed")
             except Exception as e:
@@ -248,130 +426,165 @@ async def process_text_query(query: TextQuery):
             detail=f"Error processing text query: {str(e)}"
         )
 
-# @app.post("/voice-query", response_model=VoiceResponse)
-# async def process_voice_query(
-#     audio_file: UploadFile = File(...),
-#     background_tasks: BackgroundTasks = None
-# ):
-#     """
-#     Process a voice query and return both text and synthesized speech response.
-#     """
-#     try:
-#         logger.info(f"Processing voice query from file: {audio_file.filename}")
-        
-#         # Read uploaded audio file
-#         audio_data = await audio_file.read()
-#         logger.info(f"Received audio data: {len(audio_data)} bytes")
-        
-#         # Validate WAV format
-#         if not validate_wav_file(audio_data):
-#             logger.error("Invalid WAV file format")
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Invalid audio format. Please send a valid WAV file."
-#             )
-            
-#         # Save to temporary file for processing
-#         temp_input = TEMP_DIR / f"input_{uuid.uuid4()}.wav"
-#         with open(temp_input, "wb") as f:
-#             f.write(audio_data)
-            
-#         logger.info(f"Saved audio to temporary file: {temp_input}")
-        
-#         try:
-#             # Create a recognizer with the same parameters as voice_agent.py
-#             recognizer = sr.Recognizer()
-#             recognizer.energy_threshold = 300
-#             recognizer.dynamic_energy_threshold = True
-#             recognizer.dynamic_energy_adjustment_damping = 0.15
-#             recognizer.dynamic_energy_ratio = 1.5
-            
-#             # Use AudioFile instead of AudioData for better compatibility
-#             with sr.AudioFile(str(temp_input)) as source:
-#                 audio = recognizer.record(source)
-                
-#             # Attempt recognition
-#             text = recognizer.recognize_google(audio)
-            
-#             if not text:
-#                 logger.warning("No speech detected in audio")
-#                 raise sr.UnknownValueError("No speech detected")
-                
-#             logger.info(f"Successfully transcribed text: {text}")
-            
-#         except sr.UnknownValueError:
-#             logger.warning("Could not understand audio")
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Could not understand audio input"
-#             )
-#         except sr.RequestError as e:
-#             logger.error(f"Speech recognition error: {e}")
-#             raise HTTPException(
-#                 status_code=500,
-#                 detail=f"Speech recognition service error: {str(e)}"
-#             )
-#         finally:
-#             # Clean up temporary input file
-#             if temp_input.exists():
-#                 temp_input.unlink()
-            
-#         # Generate response using the text agent
-#         response_text = text_agent.generate_response(text)
-#         logger.info(f"Generated response: {response_text}")
-        
-#         # Convert response to speech using TTS
-#         audio_data = voice_agent.text_to_speech.convert_to_speech(response_text)
-        
-#         if not audio_data:
-#             # Return text-only response if speech conversion fails
-#             logger.warning("Speech synthesis failed, returning text-only response")
-#             return VoiceResponse(
-#                 text=response_text,
-#                 error="Speech synthesis unavailable"
-#             )
-            
-#         # Save audio response to temporary file
-#         temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.mp3"
-#         with open(temp_output, "wb") as f:
-#             f.write(audio_data)
-            
-#         # Schedule cleanup of temporary files
-#         if background_tasks:
-#             background_tasks.add_task(cleanup_old_files, TEMP_DIR)
-        
-#         # Generate URL for audio file
-#         audio_url = f"/audio/{temp_output.name}"
-        
-#         logger.info("Successfully processed voice query and generated response")
-#         return VoiceResponse(
-#             text=response_text,
-#             audio_url=audio_url
-#         )
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"Error processing voice query: {e}")
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Error processing voice query: {str(e)}"
-#         )
+@app.post("/voice-query", response_model=VoiceResponse)
+async def process_voice_query(
+    audio_file: UploadFile = File(...),
+    language: str = Form("english"),  # Accept language from FormData, default to English
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    """
+    Process a voice query and return both text and synthesized speech response.
+    """
+    try:
+        logger.info(f"Processing voice query from file: {audio_file.filename}")
+        logger.info(f"Selected language for TTS (raw): {language}")
+        xtts_code = get_xtts_language_code(language)
+        logger.info(f"XTTS v2 language code used: {xtts_code}")
 
-# @app.get("/audio/{filename}")
-# async def get_audio(filename: str):
-#     """
-#     Serve generated audio files.
-#     """
-#     file_path = TEMP_DIR / filename
-#     if not file_path.exists():
-#         raise HTTPException(status_code=404, detail="Audio file not found")
+        # Map code to DeepTranslator language name
+        deep_translator_language = map_code_to_deep_translator_language(language)
+        logger.info(f"DeepTranslator target language: {deep_translator_language}")
+
+        # Validate language for agent
+        is_valid, agent_language = text_agent.language_manager.validate_language(deep_translator_language)
+        logger.info(f"Normalized agent language for translation: {agent_language} (valid: {is_valid})")
+        if not is_valid:
+            logger.error(f"Unsupported language for translation: {language}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported language: {language}. Use /languages-voice endpoint to see available languages."
+            )
+
+        # Read uploaded audio file
+        audio_data = await audio_file.read()
+        logger.info(f"Received audio data: {len(audio_data)} bytes")
+
+        # Validate and convert audio to WAV if needed
+        wav_data = validate_and_convert_audio(audio_data)
+        if not wav_data:
+            logger.error("Invalid or unsupported audio format. Could not convert to WAV.")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or unsupported audio format. Please send a valid audio file."
+            )
+
+        # Save to temporary file for processing
+        temp_input = TEMP_DIR / f"input_{uuid.uuid4()}.wav"
+        with open(temp_input, "wb") as f:
+            f.write(wav_data)
+        logger.info(f"Saved audio to temporary file: {temp_input}")
+
+        try:
+            recognizer = sr.Recognizer()
+            recognizer.energy_threshold = 300
+            recognizer.dynamic_energy_threshold = True
+            recognizer.dynamic_energy_adjustment_damping = 0.15
+            recognizer.dynamic_energy_ratio = 1.5
+            with sr.AudioFile(str(temp_input)) as source:
+                audio = recognizer.record(source)
+            text = recognizer.recognize_google(audio)  # type: ignore[attr-defined]
+            if not text:
+                logger.warning("No speech detected in audio")
+                raise sr.UnknownValueError("No speech detected")
+            logger.info(f"Successfully transcribed text: {text}")
+        except sr.UnknownValueError:
+            logger.warning("Could not understand audio")
+            # Fallback: generate TTS for error message and return with 200 OK
+            fallback_text = "Sorry, I could not understand your voice. Please try again."
+            # Translate the fallback text to the selected language
+            text_agent.user_language = deep_translator_language
+            try:
+                translated_fallback_text = await text_agent.enhanced_translator.translate_text(fallback_text, deep_translator_language)
+                logger.info(f"Translated fallback text to {deep_translator_language}: {translated_fallback_text}")
+            except Exception as e:
+                logger.error(f"Translation failed for fallback text to {deep_translator_language}: {e}")
+                translated_fallback_text = fallback_text
+            fallback_xtts_code = get_xtts_language_code(language)
+            fallback_audio_data = voice_agent.text_to_speech.convert_to_speech(translated_fallback_text, language=fallback_xtts_code)
+            if fallback_audio_data:
+                temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.wav"
+                with open(temp_output, "wb") as f:
+                    f.write(fallback_audio_data)
+                background_tasks.add_task(cleanup_old_files, TEMP_DIR)
+                audio_url = f"/audio/{temp_output.name}"
+                return VoiceResponse(
+                    user_text=fallback_text,
+                    response_text=translated_fallback_text,
+                    audio_url=audio_url,
+                    error="Could not understand audio input"
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not understand audio input and TTS fallback failed."
+                )
+        except sr.RequestError as e:
+            logger.error(f"Speech recognition error: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Speech recognition service error: {str(e)}"
+            )
+        finally:
+            if temp_input.exists():
+                temp_input.unlink()
+
+        # Always set the agent's user_language to the mapped DeepTranslator language
+        text_agent.user_language = deep_translator_language
+        response_text = await text_agent.generate_response(text)
+        logger.info(f"Generated response (before translation): {response_text}")
+
+        # Always translate the response to the selected language (even if it's English, for consistency)
+        try:
+            translated_response = await text_agent.enhanced_translator.translate_text(response_text, deep_translator_language)
+            logger.info(f"Translated response to {deep_translator_language}: {translated_response}")
+        except Exception as e:
+            logger.error(f"Translation failed for {deep_translator_language}: {e}")
+            translated_response = response_text
+
+        # Synthesize speech in the selected language
+        audio_data = voice_agent.text_to_speech.convert_to_speech(translated_response, language=xtts_code)
+        if not audio_data:
+            logger.warning("Speech synthesis failed, returning text-only response")
+            return VoiceResponse(
+                user_text=response_text,
+                response_text=translated_response,
+                error="Speech synthesis unavailable"
+            )
+        temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.wav"
+        with open(temp_output, "wb") as f:
+            f.write(audio_data)
+        background_tasks.add_task(cleanup_old_files, TEMP_DIR)
+        audio_url = f"/audio/{temp_output.name}"
+        logger.info("Successfully processed voice query and generated response")
+        return VoiceResponse(
+            user_text=response_text,
+            response_text=translated_response,
+            audio_url=audio_url,
+            error=None
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing voice query: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing voice query: {str(e)}"
+        )
+
+@app.get("/audio/{filename}")
+async def get_audio(filename: str):
+    """
+    Serve generated audio files.
+    """
+    file_path = TEMP_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
         
-#     return FileResponse(
-#         file_path,
-#         media_type="audio/mpeg",
-#         filename=filename
-#     )
+    return FileResponse(
+        file_path,
+        media_type="audio/wav",
+        filename=filename
+    )
 
 @app.get("/health")
 async def health_check():
@@ -384,7 +597,7 @@ async def health_check():
         "version": "1.1.0",
         "services": {
             "text_agent": "ok",
-            "voice_agent": "disabled",
+            "voice_agent": "ok",
             "translation": "ok"
         }
     }
@@ -397,44 +610,25 @@ async def health_check():
         status["services"]["text_agent"] = f"error: {str(e)}"
         status["status"] = "degraded"
     
-    # # Check voice agent
-    # try:
-    #     # Simple test to verify voice agent is working
-    #     _ = voice_agent.text_to_speech.api_key
-    # except Exception as e:
-    #     status["services"]["voice_agent"] = f"error: {str(e)}"
-    #     status["status"] = "degraded"
-    
-    # # Check translation service
-    # try:
-    #     translator = GoogleTranslator(source='en', target='es')
-    #     test_translation = translator.translate("hello")
-    #     if not test_translation:
-    #         raise ValueError("Empty translation result")
-    # except Exception as e:
-    #     status["services"]["translation"] = f"error: {str(e)}"
-    #     status["status"] = "degraded"
-    
-    # return status
-
-@app.get("/languages")
-async def get_available_languages():
-    """
-    Get list of available languages for translation.
-    """
+    # Check voice agent
     try:
-        languages = sorted(text_agent.language_manager.supported_languages)
-        return {
-            "success": True,
-            "languages": languages,
-            "count": len(languages)
-        }
+        # Simple test to verify voice agent is working
+        _ = voice_agent.text_to_speech.supported_languages
     except Exception as e:
-        logger.error(f"Error getting languages: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error retrieving available languages: {str(e)}"
-        )
+        status["services"]["voice_agent"] = f"error: {str(e)}"
+        status["status"] = "degraded"
+    
+    # Check translation service
+    try:
+        translator = GoogleTranslator(source='en', target='es')
+        test_translation = translator.translate("hello")
+        if not test_translation:
+            raise ValueError("Empty translation result")
+    except Exception as e:
+        status["services"]["translation"] = f"error: {str(e)}"
+        status["status"] = "degraded"
+    
+    return status
 
 @app.post("/batch-translate", response_model=BatchTranslationResponse)
 async def batch_translate(request: BatchTranslationRequest):
@@ -449,7 +643,7 @@ async def batch_translate(request: BatchTranslationRequest):
         if not is_valid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported target language: {request.target_language}. Use /languages endpoint to see available languages."
+                detail=f"Unsupported target language: {request.target_language}. Use /languages-text endpoint to see available languages."
             )
         
         # Skip translation if source and target are the same
@@ -603,46 +797,112 @@ async def detect_language(request: LanguageDetectionRequest):
             error=str(e)
         )
 
-# @app.post("/text-to-speech")
-# async def convert_text_to_speech(request: TextToSpeechRequest, background_tasks: BackgroundTasks = None):
-#     """
-#     Convert text to speech using ElevenLabs API and return audio URL.
-#     """
-#     try:
-#         logger.info(f"Converting text to speech: {request.text[:50]}...")
+@app.post("/text-to-speech", response_model=TextToSpeechResponse)
+async def convert_text_to_speech(request: TextToSpeechRequest, background_tasks: BackgroundTasks = BackgroundTasks()):
+    """
+    Convert text to speech using Coqui TTS and return audio URL.
+    """
+    try:
+        # Clean and prepare text
+        text = request.text.strip()
         
-#         # Convert text to speech
-#         audio_data = voice_agent.text_to_speech.convert_to_speech(request.text)
-        
-#         if not audio_data:
-#             raise HTTPException(
-#                 status_code=500,
-#                 detail="Failed to convert text to speech"
-#             )
+        # Ensure minimum text length for kernel size
+        min_text_length = 50  # Minimum length to satisfy kernel size
+        if len(text) < min_text_length:
+            text = f"Hello. {text} Thank you for your question. I hope this helps."
             
-#         # Save audio to temporary file
-#         temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.mp3"
-#         with open(temp_output, "wb") as f:
-#             f.write(audio_data)
+        # Split text into sentences and ensure each chunk is long enough
+        sentences = [s.strip() + '.' for s in text.split('.') if s.strip()]
+        text_chunks = []
+        current_chunk = []
+        current_length = 0
+        
+        for sentence in sentences:
+            # If a single sentence is too short, add padding
+            if len(sentence) < min_text_length:
+                sentence = f"Let me say that again. {sentence} Thank you."
             
-#         # Schedule cleanup of temporary files
-#         if background_tasks:
-#             background_tasks.add_task(cleanup_old_files, TEMP_DIR)
+            if current_length + len(sentence) > 200:  # Maximum chunk size
+                if current_chunk:
+                    text_chunks.append(' '.join(current_chunk))
+                current_chunk = [sentence]
+                current_length = len(sentence)
+            else:
+                current_chunk.append(sentence)
+                current_length += len(sentence)
         
-#         # Generate URL for audio file
-#         audio_url = f"/audio/{temp_output.name}"
+        if current_chunk:
+            text_chunks.append(' '.join(current_chunk))
+            
+        logger.info(f"Converting text to speech: {text[:50]}...")
+        logger.info(f"Split into {len(text_chunks)} chunks")
         
-#         return {
-#             "success": True,
-#             "audio_url": audio_url
-#         }
+        # Process each chunk and combine audio
+        all_audio_data = []
+        for chunk in text_chunks:
+            try:
+                xtts_code = get_xtts_language_code(request.language or "english")
+                audio_data = voice_agent.text_to_speech.convert_to_speech(chunk, language=xtts_code)
+                if audio_data:
+                    all_audio_data.append(audio_data)
+            except Exception as chunk_error:
+                logger.warning(f"Error processing chunk: {chunk_error}")
+                padded_chunk = f"Let me repeat that. {chunk} Thank you for listening."
+                try:
+                    xtts_code = get_xtts_language_code(request.language or "english")
+                    audio_data = voice_agent.text_to_speech.convert_to_speech(padded_chunk, language=xtts_code)
+                    if audio_data:
+                        all_audio_data.append(audio_data)
+                except Exception as retry_error:
+                    logger.error(f"Failed to process chunk even with padding: {retry_error}")
         
-#     except Exception as e:
-#         logger.error(f"Error converting text to speech: {e}")
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Error converting text to speech: {str(e)}"
-#         )
+        if not all_audio_data:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to convert text to speech"
+            )
+            
+        # Combine all audio chunks
+        combined_audio = b''.join(all_audio_data)
+            
+        # Save audio to temporary file
+        temp_output = TEMP_DIR / f"output_{uuid.uuid4()}.wav"
+        with open(temp_output, "wb") as f:
+            f.write(combined_audio)
+            
+        # Schedule cleanup of temporary files
+        background_tasks.add_task(cleanup_old_files, TEMP_DIR)
+        
+        # Generate URL for audio file
+        audio_url = f"/audio/{temp_output.name}"
+        
+        return TextToSpeechResponse(
+            success=True,
+            audio_url=audio_url,
+            text=text
+        )
+        
+    except Exception as e:
+        logger.error(f"Error converting text to speech: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error converting text to speech: {str(e)}"
+        )
+
+@app.post("/tts-stream")
+async def tts_stream(text: str, language: str = "english"):
+    """
+    Stream TTS audio directly as audio/wav for browser playback.
+    """
+    try:
+        xtts_code = get_xtts_language_code(language)
+        audio_data = voice_agent.text_to_speech.convert_to_speech(text, language=xtts_code)
+        if not audio_data:
+            raise HTTPException(status_code=500, detail="TTS generation failed")
+        return StreamingResponse(io.BytesIO(audio_data), media_type="audio/wav")
+    except Exception as e:
+        logger.error(f"TTS stream error: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS stream error: {str(e)}")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -661,9 +921,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 if __name__ == "__main__":
     uvicorn.run(
-        "server:app",
+        "server2:app",
         host="0.0.0.0",
-        port=8005,  # Changed port from 8000 to 8080
+        port=8005,
         reload=True,
         log_level="info"
     ) 
